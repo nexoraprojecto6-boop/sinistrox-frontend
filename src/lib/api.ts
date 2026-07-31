@@ -55,15 +55,18 @@ export interface AdminStats {
 }
 
 // ── Relatório de comissão (Deriv markup-statistics) ─────────
-export interface MarkupStatisticsBreakdown {
-  app_id: string
-  app_markup_usd: number
-  volume_usd: number
-  payout_usd: number
-  contract_count: number
-  client_count: number
-}
-
+//
+// CORREÇÃO: o backend (GET /api/admin/markup-statistics) usa
+// DerivAPIService.getAppMarkupStatistics(), que já filtra o
+// breakdown da Deriv para devolver SÓ os totais da app Lucro IA
+// — a resposta nunca inclui um campo `breakdown` (ver
+// admin.routes.ts, res.json({...}) no final da rota). O tipo
+// tinha `breakdown: MarkupStatisticsBreakdown[]` como campo
+// obrigatório, o que causava
+// `TypeError: Cannot read properties of undefined (reading 'length')`
+// no AdminPage assim que os dados chegavam. Alinhado aqui com o
+// shape real da resposta: app_id + app_found (para distinguir
+// "sem movimento no período" de dados a 0 por outro motivo).
 export interface MarkupCommissionSplit {
   kelvin: number
   platform: number
@@ -72,12 +75,13 @@ export interface MarkupCommissionSplit {
 }
 
 export interface MarkupStatisticsData {
+  app_id: string
+  app_found: boolean
   total_app_markup_usd: number
   total_volume_usd: number
   total_payout_usd: number
   total_contract_count: number
   total_client_count: number
-  breakdown: MarkupStatisticsBreakdown[]
   date_from: string
   date_to: string
   commission_split: MarkupCommissionSplit
@@ -149,12 +153,10 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
 // Chamada autenticada com o token de LOGIN LOCAL (não confundir com o
 // token de sessão Deriv usado em fetchWithAuth).
 //
-// CORREÇÃO: o backend (requireLocalAuth) lê o header
-// "x-local-authorization", não "Authorization" — este último já é
-// usado pelo token de sessão Deriv nas rotas de trading, por isso o
-// backend usa um header próprio para não colidirem. Antes desta
-// correção, todas as chamadas aqui (getLocalMe, rotas de admin)
-// falhavam silenciosamente a autenticação.
+// O backend (requireLocalAuth) lê o header "x-local-authorization",
+// não "Authorization" — este último já é usado pelo token de sessão
+// Deriv nas rotas de trading, por isso o backend usa um header
+// próprio para não colidirem.
 async function fetchWithLocalAuth(endpoint: string, options: RequestInit = {}) {
   const token = getLocalToken()
   const headers: Record<string, string> = {
