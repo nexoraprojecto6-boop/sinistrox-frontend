@@ -101,6 +101,13 @@ export default function LoginPage() {
       {/* Cartão de login — liso, sem moldura */}
       <div className="card fade-in" style={cardStyle}>
         <div style={{ textAlign: 'center' }}>
+          {/* Espaço reservado para o logo em PNG (sem fundo) — troca o src abaixo
+              pelo ficheiro do teu logo. O tamanho acompanha o texto "LUCRO IA". */}
+          <img
+            src="/logo.png"
+            alt="Lucro IA"
+            style={{ height: 56, width: 'auto', marginBottom: 10, objectFit: 'contain' }}
+          />
           <h1 className="logo-text" style={{ fontSize: 30, marginBottom: 4, fontWeight: 700, letterSpacing: 0.5 }}>LUCRO IA</h1>
         </div>
 
