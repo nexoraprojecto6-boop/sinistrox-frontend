@@ -517,6 +517,19 @@ export default function AdminPage() {
                   Período: {formatPeriod(markup.date_from, markup.date_to)}
                 </p>
 
+                {/* CORREÇÃO: o backend já filtra o breakdown da Deriv
+                    para devolver só os totais desta app (Lucro IA) —
+                    não existe um campo `breakdown` na resposta. Quando
+                    a app não teve nenhum movimento no período,
+                    `app_found` vem a false e os totais vêm a 0; nesse
+                    caso mostra-se um aviso em vez de números vazios
+                    sem contexto. */}
+                {markup.app_found === false && (
+                  <p style={{ color: 'var(--text-faint)', fontSize: 12.5, marginBottom: 14 }}>
+                    Sem registo de comissão para esta app no período selecionado.
+                  </p>
+                )}
+
                 {/* Divisão da comissão — o destaque principal desta secção */}
                 <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
                   <div className="card" style={{ flex: '1 1 200px', padding: '16px 18px', background: 'var(--bg-card-hi)' }}>
@@ -546,39 +559,12 @@ export default function AdminPage() {
                 </div>
 
                 {/* Métricas de apoio */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: markup.breakdown.length > 0 ? 16 : 0 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   <StatCard label="Volume negociado" value={formatUsd(markup.total_volume_usd)} />
                   <StatCard label="Payout total" value={formatUsd(markup.total_payout_usd)} />
                   <StatCard label="Contratos" value={markup.total_contract_count} />
                   <StatCard label="Clientes" value={markup.total_client_count} />
                 </div>
-
-                {markup.breakdown.length > 0 && (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                      <thead>
-                        <tr style={{ color: 'var(--text-dim)', borderBottom: '1px solid var(--border)' }}>
-                          <th style={{ textAlign: 'left', padding: '8px 6px', fontWeight: 600 }}>App ID</th>
-                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Comissão</th>
-                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Volume</th>
-                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Contratos</th>
-                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Clientes</th>
-                        </tr>
-                      </thead>
-                      <tbody className="tabular">
-                        {markup.breakdown.map((b) => (
-                          <tr key={b.app_id} style={{ borderBottom: '1px solid rgba(31,44,74,0.4)' }}>
-                            <td style={{ padding: '8px 6px', color: 'var(--text-dim)' }}>{b.app_id}</td>
-                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>{formatUsd(b.app_markup_usd)}</td>
-                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{formatUsd(b.volume_usd)}</td>
-                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{b.contract_count}</td>
-                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{b.client_count}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </>
             )}
 
