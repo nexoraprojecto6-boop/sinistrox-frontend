@@ -20,7 +20,7 @@ const WHATSAPP = '976289984'
 const BASE_ONLINE = 406
 const ONLINE_MIN = 380
 const ONLINE_MAX = 520
-const SIM_STORAGE_KEY = 'nexora_online_sim'
+const SIM_STORAGE_KEY = 'lucroia_online_sim'
 const SIM_MAX_AGE_MS = 12 * 60 * 60 * 1000 // reinicia a simulação após 12h parada
 
 function loadSimulatedOnline(): number {
@@ -64,16 +64,16 @@ const LOCAL_AVISOS = [
   { id: '3', titulo: 'Promoção Mentoria VIP', mensagem: 'Vagas limitadas para mentoria VIP de maio. Entre em contacto agora.', data: '25/04/2026' },
 ]
 
-const TERMOS = `TERMOS E CONDIÇÕES — NEXORA FOREX
+const TERMOS = `TERMOS E CONDIÇÕES — LUCRO IA
 
 1. ACEITAÇÃO DOS TERMOS
-Ao utilizar a plataforma Nexora Forex, o utilizador aceita integralmente os presentes termos e condições.
+Ao utilizar a plataforma Lucro IA, o utilizador aceita integralmente os presentes termos e condições.
 
 2. RISCOS
 O trading envolve riscos elevados de perda de capital. Os resultados passados não garantem resultados futuros. O utilizador é o único responsável pelas suas decisões de investimento.
 
 3. RESPONSABILIDADE
-A Nexora Forex não se responsabiliza por perdas financeiras resultantes do uso da plataforma.
+A Lucro IA não se responsabiliza por perdas financeiras resultantes do uso da plataforma.
 
 4. CONTACTO
 Para questões, contacte-nos via WhatsApp: +${WHATSAPP}`
@@ -198,7 +198,7 @@ export default function MenuPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="logo-text" style={{ fontSize: 18 }}>NEXORA</h1>
+          <h1 className="logo-text" style={{ fontSize: 18 }}>LUCRO IA</h1>
         </div>
       </div>
 
