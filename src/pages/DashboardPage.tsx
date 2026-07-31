@@ -44,7 +44,7 @@ function DashboardLoader() {
       alignItems: 'center', justifyContent: 'center', gap: 20,
       background: 'rgba(7,11,20,0.97)', backdropFilter: 'blur(10px)',
     }}>
-      <h1 className="logo-text" style={{ fontSize: 20 }}>NEXORA FOREX</h1>
+      <h1 className="logo-text" style={{ fontSize: 20 }}>LUCRO IA</h1>
       <div style={{ position: 'relative', width: 56, height: 56 }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: 'var(--blue-hi)', borderRightColor: 'rgba(24,87,255,0.15)', animation: 'spin 0.85s linear infinite' }} />
         <div style={{ position: 'absolute', inset: 9, borderRadius: '50%', border: '2px solid transparent', borderBottomColor: 'var(--red-hi)', borderLeftColor: 'rgba(233,32,63,0.15)', animation: 'spin 0.65s linear infinite reverse' }} />
@@ -96,7 +96,7 @@ function DashboardInner() {
         borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="logo-text" style={{ fontSize: 16 }}>NEXORA FOREX</span>
+          <span className="logo-text" style={{ fontSize: 16 }}>LUCRO IA</span>
         </div>
 
         {/* Botão DEPOSITAR + Botão MENU + sino de notificação sobreposto no canto ── */}
