@@ -44,7 +44,10 @@ function DashboardLoader() {
       alignItems: 'center', justifyContent: 'center', gap: 20,
       background: 'rgba(7,11,20,0.97)', backdropFilter: 'blur(10px)',
     }}>
-      <h1 className="logo-text" style={{ fontSize: 20 }}>LUCRO IA</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <img src="/logo.png" alt="Lucro IA" style={{ height: 30, width: 'auto', objectFit: 'contain' }} />
+        <h1 className="logo-text" style={{ fontSize: 22 }}>LUCRO IA</h1>
+      </div>
       <div style={{ position: 'relative', width: 56, height: 56 }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: 'var(--blue-hi)', borderRightColor: 'rgba(24,87,255,0.15)', animation: 'spin 0.85s linear infinite' }} />
         <div style={{ position: 'absolute', inset: 9, borderRadius: '50%', border: '2px solid transparent', borderBottomColor: 'var(--red-hi)', borderLeftColor: 'rgba(233,32,63,0.15)', animation: 'spin 0.65s linear infinite reverse' }} />
@@ -95,8 +98,11 @@ function DashboardInner() {
         padding: '10px 16px', background: 'var(--bg-elevated)',
         borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="logo-text" style={{ fontSize: 16 }}>LUCRO IA</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Logo em PNG (sem fundo) — troca o src pelo ficheiro do teu logo.
+              Tamanho exato: ajusta o height se o logo tiver proporções diferentes. */}
+          <img src="/logo.png" alt="Lucro IA" style={{ height: 26, width: 'auto', objectFit: 'contain' }} />
+          <span className="logo-text" style={{ fontSize: 18 }}>LUCRO IA</span>
         </div>
 
         {/* Botão DEPOSITAR + Botão MENU + sino de notificação sobreposto no canto ── */}
