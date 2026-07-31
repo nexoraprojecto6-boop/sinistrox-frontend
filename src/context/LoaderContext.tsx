@@ -1,14 +1,11 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
-
 interface LoaderProps {
   isVisible: boolean
   text?: string
   progress?: number
 }
-
 function Loader({ isVisible, text = 'A carregar...', progress }: LoaderProps) {
   const [internalProgress, setInternalProgress] = useState(0)
-
   useEffect(() => {
     if (isVisible && progress === undefined) {
       const steps = [10, 25, 42, 58, 70, 80, 89, 94]
@@ -19,18 +16,15 @@ function Loader({ isVisible, text = 'A carregar...', progress }: LoaderProps) {
       return () => clearInterval(interval)
     }
   }, [isVisible, progress])
-
   useEffect(() => { if (progress !== undefined) setInternalProgress(progress) }, [progress])
-
   if (!isVisible) return null
-
   return (
     <div className="fade-in" style={{
       position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', gap: 18,
       background: 'rgba(7,11,20,0.92)', backdropFilter: 'blur(12px)',
     }}>
-      <div className="logo-text" style={{ fontSize: 18 }}>NEXORA</div>
+      <div className="logo-text" style={{ fontSize: 18 }}>LUCRO IA</div>
       <div style={{ position: 'relative', width: 58, height: 58 }}>
         <div style={{
           position: 'absolute', inset: 0, borderRadius: '50%',
@@ -59,27 +53,22 @@ function Loader({ isVisible, text = 'A carregar...', progress }: LoaderProps) {
     </div>
   )
 }
-
 interface LoaderContextType {
   show: (text?: string) => void
   hide: () => void
   complete: (text?: string) => void
 }
-
 const LoaderContext = createContext<LoaderContextType | undefined>(undefined)
-
 export function LoaderProvider({ children }: { children: ReactNode }) {
   const [isVisible, setIsVisible] = useState(false)
   const [text, setText] = useState('A carregar...')
   const [progress, setProgress] = useState<number | undefined>(undefined)
-
   const show = (newText?: string) => { setText(newText || 'A carregar...'); setProgress(undefined); setIsVisible(true) }
   const hide = () => { setIsVisible(false); setProgress(undefined) }
   const complete = (completeText?: string) => {
     setText(completeText || 'Pronto!'); setProgress(100)
     setTimeout(() => hide(), 420)
   }
-
   return (
     <LoaderContext.Provider value={{ show, hide, complete }}>
       {children}
@@ -87,7 +76,6 @@ export function LoaderProvider({ children }: { children: ReactNode }) {
     </LoaderContext.Provider>
   )
 }
-
 export function useLoader() {
   const ctx = useContext(LoaderContext)
   if (!ctx) throw new Error('useLoader must be used within a LoaderProvider')
