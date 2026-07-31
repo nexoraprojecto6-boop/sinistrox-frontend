@@ -60,7 +60,7 @@ export default function CallbackPage() {
       <div style={{ textAlign: 'center', maxWidth: 420 }}>
         {status === 'loading' && (
           <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-            <div className="logo-text" style={{ fontSize: 22 }}>NEXORA</div>
+            <div className="logo-text" style={{ fontSize: 22 }}>LUCRO IA</div>
             <div style={{ position: 'relative', width: 56, height: 56 }}>
               <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: 'var(--blue-hi)', borderRightColor: 'rgba(24,87,255,0.2)', animation: 'spin 0.9s linear infinite' }} />
               <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '2px solid transparent', borderBottomColor: 'var(--red-hi)', borderLeftColor: 'rgba(233,32,63,0.2)', animation: 'spin 0.7s linear infinite reverse' }} />
