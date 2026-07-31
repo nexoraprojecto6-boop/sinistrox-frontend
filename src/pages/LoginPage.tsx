@@ -101,7 +101,7 @@ export default function LoginPage() {
       {/* Cartão de login — liso, sem moldura */}
       <div className="card fade-in" style={cardStyle}>
         <div style={{ textAlign: 'center' }}>
-          <h1 className="logo-text" style={{ fontSize: 30, marginBottom: 4, fontWeight: 700, letterSpacing: 0.5 }}>NEXORA FOREX</h1>
+          <h1 className="logo-text" style={{ fontSize: 30, marginBottom: 4, fontWeight: 700, letterSpacing: 0.5 }}>LUCRO IA</h1>
         </div>
 
         <form onSubmit={handleSubmit} style={{ marginTop: 26 }}>
@@ -149,7 +149,7 @@ export default function LoginPage() {
         </div>
 
         <div style={{ marginTop: 30, textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 Nexora Forex</p>
+          <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 Lucro IA</p>
         </div>
       </div>
     </div>
@@ -163,12 +163,12 @@ function GlassChartBackground() {
   return (
     <>
       <style>{`
-        @keyframes nexora-drift {
+        @keyframes lucroia-drift {
           0%   { transform: translate3d(0, 0, 0) scale(1); }
           50%  { transform: translate3d(-1.5%, 1%, 0) scale(1.03); }
           100% { transform: translate3d(0, 0, 0) scale(1); }
         }
-        @keyframes nexora-sheen {
+        @keyframes lucroia-sheen {
           0%   { opacity: 0.35; }
           50%  { opacity: 0.6; }
           100% { opacity: 0.35; }
@@ -189,17 +189,17 @@ function GlassChartBackground() {
         style={{
           position: 'fixed', inset: 0, width: '100%', height: '100%',
           filter: 'blur(22px)', opacity: 0.5, zIndex: 0,
-          animation: 'nexora-drift 22s ease-in-out infinite',
+          animation: 'lucroia-drift 22s ease-in-out infinite',
         }}
       >
         <defs>
-          <linearGradient id="nexoraLine" x1="0" y1="0" x2="1" y2="0">
+          <linearGradient id="lucroiaLine" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="rgba(24,87,255,0)" />
             <stop offset="45%" stopColor="rgba(24,87,255,0.55)" />
             <stop offset="70%" stopColor="rgba(233,32,63,0.4)" />
             <stop offset="100%" stopColor="rgba(24,87,255,0)" />
           </linearGradient>
-          <linearGradient id="nexoraFill" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="lucroiaFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="rgba(24,87,255,0.18)" />
             <stop offset="100%" stopColor="rgba(24,87,255,0)" />
           </linearGradient>
@@ -207,11 +207,11 @@ function GlassChartBackground() {
 
         <path
           d="M0,520 L60,500 L120,540 L180,470 L240,510 L300,430 L360,460 L420,380 L480,420 L540,340 L600,390 L660,300 L720,350 L780,260 L840,300 L900,230 L960,270 L1020,200 L1080,240 L1140,180 L1200,220"
-          fill="none" stroke="url(#nexoraLine)" strokeWidth="3"
+          fill="none" stroke="url(#lucroiaLine)" strokeWidth="3"
         />
         <path
           d="M0,520 L60,500 L120,540 L180,470 L240,510 L300,430 L360,460 L420,380 L480,420 L540,340 L600,390 L660,300 L720,350 L780,260 L840,300 L900,230 L960,270 L1020,200 L1080,240 L1140,180 L1200,220 L1200,800 L0,800 Z"
-          fill="url(#nexoraFill)"
+          fill="url(#lucroiaFill)"
         />
       </svg>
 
@@ -220,7 +220,7 @@ function GlassChartBackground() {
         position: 'fixed', inset: 0, zIndex: 1,
         background: 'radial-gradient(circle at 50% 20%, rgba(255,255,255,0.05), transparent 60%)',
         backdropFilter: 'blur(0.5px)',
-        animation: 'nexora-sheen 8s ease-in-out infinite',
+        animation: 'lucroia-sheen 8s ease-in-out infinite',
         pointerEvents: 'none',
       }} />
     </>
