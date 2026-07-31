@@ -4,6 +4,7 @@ import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import { inputStyle, labelStyle, errorTextStyle } from '../lib/glass'
+import logo from '../logo.png'
 
 // ---------------------------------------------------------------------------
 // Bandeiras (apenas visual — não altera nenhuma lógica de autenticação/i18n
@@ -104,7 +105,7 @@ export default function LoginPage() {
           {/* Espaço reservado para o logo em PNG (sem fundo) — troca o src abaixo
               pelo ficheiro do teu logo. O tamanho acompanha o texto "LUCRO IA". */}
           <img
-            src="/logo.png"
+            src={logo}
             alt="Lucro IA"
             style={{ height: 56, width: 'auto', marginBottom: 10, objectFit: 'contain' }}
           />
