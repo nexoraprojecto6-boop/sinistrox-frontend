@@ -12,6 +12,7 @@ import NotificationCenterFloating from '../components/NotificationCenterFloating
 import { DepositModal } from '../components/DepositModal'
 import { useLoader } from '../context/LoaderContext'
 import { useNotifications } from '../hooks/useNotifications'
+import logo from '../logo.png'
 
 // Formata "há X min/h/dias" a partir de um timestamp — só usado
 // para o campo `time` exibido no modal de notificações.
@@ -45,7 +46,7 @@ function DashboardLoader() {
       background: 'rgba(7,11,20,0.97)', backdropFilter: 'blur(10px)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <img src="/logo.png" alt="Lucro IA" style={{ height: 30, width: 'auto', objectFit: 'contain' }} />
+        <img src={logo} alt="Lucro IA" style={{ height: 30, width: 'auto', objectFit: 'contain' }} />
         <h1 className="logo-text" style={{ fontSize: 22 }}>LUCRO IA</h1>
       </div>
       <div style={{ position: 'relative', width: 56, height: 56 }}>
@@ -101,7 +102,7 @@ function DashboardInner() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Logo em PNG (sem fundo) — troca o src pelo ficheiro do teu logo.
               Tamanho exato: ajusta o height se o logo tiver proporções diferentes. */}
-          <img src="/logo.png" alt="Lucro IA" style={{ height: 26, width: 'auto', objectFit: 'contain' }} />
+          <img src={logo} alt="Lucro IA" style={{ height: 26, width: 'auto', objectFit: 'contain' }} />
           <span className="logo-text" style={{ fontSize: 18 }}>LUCRO IA</span>
         </div>
 
