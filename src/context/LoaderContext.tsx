@@ -24,7 +24,7 @@ function Loader({ isVisible, text = 'A carregar...', progress }: LoaderProps) {
       alignItems: 'center', justifyContent: 'center', gap: 18,
       background: 'rgba(7,11,20,0.92)', backdropFilter: 'blur(12px)',
     }}>
-      <div className="logo-text" style={{ fontSize: 18 }}>LUCRO IA</div>
+      <div className="logo-text" style={{ fontSize: 18 }}>SINISTRO X</div>
       <div style={{ position: 'relative', width: 58, height: 58 }}>
         <div style={{
           position: 'absolute', inset: 0, borderRadius: '50%',
