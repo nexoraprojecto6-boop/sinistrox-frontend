@@ -103,13 +103,13 @@ export default function LoginPage() {
       <div className="card fade-in" style={cardStyle}>
         <div style={{ textAlign: 'center' }}>
           {/* Espaço reservado para o logo em PNG (sem fundo) — troca o src abaixo
-              pelo ficheiro do teu logo. O tamanho acompanha o texto "LUCRO IA". */}
+              pelo ficheiro do teu logo. O tamanho acompanha o texto "SINISTRO X". */}
           <img
             src={logo}
-            alt="Lucro IA"
+            alt="Sinistro X"
             style={{ height: 56, width: 'auto', marginBottom: 10, objectFit: 'contain' }}
           />
-          <h1 className="logo-text" style={{ fontSize: 30, marginBottom: 4, fontWeight: 700, letterSpacing: 0.5 }}>LUCRO IA</h1>
+          <h1 className="logo-text" style={{ fontSize: 30, marginBottom: 4, fontWeight: 700, letterSpacing: 0.5 }}>SINISTRO X</h1>
         </div>
 
         <form onSubmit={handleSubmit} style={{ marginTop: 26 }}>
@@ -157,7 +157,7 @@ export default function LoginPage() {
         </div>
 
         <div style={{ marginTop: 30, textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 Lucro IA</p>
+          <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 Sinistro X</p>
         </div>
       </div>
     </div>
