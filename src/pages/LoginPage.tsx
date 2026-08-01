@@ -80,8 +80,8 @@ export default function LoginPage() {
 
   return (
     <div style={pageWrapStyle}>
-      {/* Fundo total em vidro, com reflexo fosco tipo gráfico de trading */}
-      <GlassChartBackground />
+      {/* Fundo preto elegante em vidro (glassmorphism) */}
+      <GlassBlackBackground />
 
       {/* Bandeiras — topo, centradas na horizontal */}
       <div style={flagsRowStyle}>
@@ -109,7 +109,15 @@ export default function LoginPage() {
             alt="Sinistro X"
             style={{ height: 56, width: 'auto', marginBottom: 10, objectFit: 'contain' }}
           />
-          <h1 className="logo-text" style={{ fontSize: 30, marginBottom: 4, fontWeight: 700, letterSpacing: 0.5 }}>SINISTRO X</h1>
+          {/* Nome da marca: "SINISTRO" a branco, "X" a vermelho — sem gradiente,
+              cor sólida para máximo contraste sobre o fundo preto em vidro. */}
+          <h1 style={{
+            fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: 0.5,
+            fontSize: 30, marginBottom: 4,
+          }}>
+            <span style={{ color: 'var(--white)' }}>SINISTRO </span>
+            <span style={{ color: 'var(--red-hi)', textShadow: '0 0 18px var(--red-glow)' }}>X</span>
+          </h1>
         </div>
 
         <form onSubmit={handleSubmit} style={{ marginTop: 26 }}>
@@ -165,70 +173,70 @@ export default function LoginPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Fundo de vidro com reflexo de gráfico (puramente decorativo)
+// Fundo preto elegante em vidro (glassmorphism) — puramente decorativo.
+//
+// CORREÇÃO/REDESIGN: versão anterior tinha um gráfico de linha azul/vermelho
+// a "flutuar" por cima do fundo, o que competia visualmente com o logo e
+// puxava para a paleta antiga (Lucro IA). Substituído por um fundo preto
+// profundo com camadas de vidro (glass) sobrepostas — brilhos radiais muito
+// subtis a vermelho (cor da marca) e um véu de vidro com leve textura de
+// ruído, sem elementos figurativos a competir com o cartão de login.
 // ---------------------------------------------------------------------------
-function GlassChartBackground() {
+function GlassBlackBackground() {
   return (
     <>
       <style>{`
-        @keyframes lucroia-drift {
-          0%   { transform: translate3d(0, 0, 0) scale(1); }
-          50%  { transform: translate3d(-1.5%, 1%, 0) scale(1.03); }
-          100% { transform: translate3d(0, 0, 0) scale(1); }
+        @keyframes sinistro-glow {
+          0%   { opacity: 0.5; transform: scale(1); }
+          50%  { opacity: 0.85; transform: scale(1.06); }
+          100% { opacity: 0.5; transform: scale(1); }
         }
-        @keyframes lucroia-sheen {
-          0%   { opacity: 0.35; }
-          50%  { opacity: 0.6; }
-          100% { opacity: 0.35; }
+        @keyframes sinistro-sheen {
+          0%   { opacity: 0.3; }
+          50%  { opacity: 0.55; }
+          100% { opacity: 0.3; }
         }
       `}</style>
 
-      {/* base escura em vidro */}
+      {/* base — preto profundo, quase absoluto */}
       <div style={{
         position: 'fixed', inset: 0,
-        background: 'linear-gradient(160deg, #05070c 0%, #0a0e17 45%, #05070c 100%)',
+        background: 'radial-gradient(circle at 50% -10%, #0c0c0e 0%, #050506 55%, #000000 100%)',
         zIndex: 0,
       }} />
 
-      {/* reflexo de gráfico, fosco, tipo água/vidro */}
-      <svg
-        viewBox="0 0 1200 800"
-        preserveAspectRatio="none"
-        style={{
-          position: 'fixed', inset: 0, width: '100%', height: '100%',
-          filter: 'blur(22px)', opacity: 0.5, zIndex: 0,
-          animation: 'lucroia-drift 22s ease-in-out infinite',
-        }}
-      >
-        <defs>
-          <linearGradient id="lucroiaLine" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(24,87,255,0)" />
-            <stop offset="45%" stopColor="rgba(24,87,255,0.55)" />
-            <stop offset="70%" stopColor="rgba(233,32,63,0.4)" />
-            <stop offset="100%" stopColor="rgba(24,87,255,0)" />
-          </linearGradient>
-          <linearGradient id="lucroiaFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(24,87,255,0.18)" />
-            <stop offset="100%" stopColor="rgba(24,87,255,0)" />
-          </linearGradient>
-        </defs>
+      {/* brilho vermelho subtil, no eixo do "X" da marca — topo */}
+      <div style={{
+        position: 'fixed', top: '-18%', left: '50%', transform: 'translateX(-50%)',
+        width: 560, height: 560, borderRadius: '50%', zIndex: 0,
+        background: 'radial-gradient(circle, rgba(233,32,63,0.16) 0%, transparent 68%)',
+        filter: 'blur(10px)',
+        animation: 'sinistro-glow 9s ease-in-out infinite',
+        pointerEvents: 'none',
+      }} />
 
-        <path
-          d="M0,520 L60,500 L120,540 L180,470 L240,510 L300,430 L360,460 L420,380 L480,420 L540,340 L600,390 L660,300 L720,350 L780,260 L840,300 L900,230 L960,270 L1020,200 L1080,240 L1140,180 L1200,220"
-          fill="none" stroke="url(#lucroiaLine)" strokeWidth="3"
-        />
-        <path
-          d="M0,520 L60,500 L120,540 L180,470 L240,510 L300,430 L360,460 L420,380 L480,420 L540,340 L600,390 L660,300 L720,350 L780,260 L840,300 L900,230 L960,270 L1020,200 L1080,240 L1140,180 L1200,220 L1200,800 L0,800 Z"
-          fill="url(#lucroiaFill)"
-        />
-      </svg>
+      {/* brilho azul-roxo bem discreto, canto inferior — profundidade sem competir com o vermelho */}
+      <div style={{
+        position: 'fixed', bottom: '-15%', right: '-10%',
+        width: 480, height: 480, borderRadius: '50%', zIndex: 0,
+        background: 'radial-gradient(circle, rgba(88,98,191,0.10) 0%, transparent 70%)',
+        filter: 'blur(10px)',
+        pointerEvents: 'none',
+      }} />
 
-      {/* véu de vidro por cima de tudo — dá o efeito "vidro limpo" */}
+      {/* véu de vidro por cima de tudo — dá o efeito "vidro limpo" sobre o preto */}
       <div style={{
         position: 'fixed', inset: 0, zIndex: 1,
-        background: 'radial-gradient(circle at 50% 20%, rgba(255,255,255,0.05), transparent 60%)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 30%, rgba(255,255,255,0) 70%, rgba(255,255,255,0.02) 100%)',
         backdropFilter: 'blur(0.5px)',
-        animation: 'lucroia-sheen 8s ease-in-out infinite',
+        animation: 'sinistro-sheen 8s ease-in-out infinite',
+        pointerEvents: 'none',
+      }} />
+
+      {/* vinheta — escurece levemente os cantos, foca o olhar no cartão central */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1,
+        background: 'radial-gradient(circle at 50% 45%, transparent 40%, rgba(0,0,0,0.45) 100%)',
         pointerEvents: 'none',
       }} />
     </>
@@ -242,6 +250,7 @@ const pageWrapStyle: React.CSSProperties = {
   position: 'relative', minHeight: '100dvh',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   padding: 16, overflow: 'hidden',
+  background: '#000',
 }
 
 const flagsRowStyle: React.CSSProperties = {
@@ -256,7 +265,7 @@ const flagBtnStyle = (active: boolean): React.CSSProperties => ({
   backdropFilter: 'blur(10px)',
   border: 'none',
   cursor: 'pointer', transition: 'all 0.2s ease',
-  boxShadow: active ? '0 0 0 3px rgba(24,87,255,0.15)' : 'none',
+  boxShadow: active ? '0 0 0 3px rgba(233,32,63,0.18)' : 'none',
 })
 
 const cardStyle: React.CSSProperties = {
@@ -264,11 +273,11 @@ const cardStyle: React.CSSProperties = {
   width: '100%', maxWidth: 400,
   padding: '48px 36px 36px',
   borderRadius: 28,
-  border: 'none',
-  boxShadow: 'none',
+  border: '1px solid rgba(255,255,255,0.06)',
+  boxShadow: '0 24px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
   background: 'rgba(255,255,255,0.035)',
-  backdropFilter: 'blur(28px) saturate(150%)',
-  WebkitBackdropFilter: 'blur(28px) saturate(150%)',
+  backdropFilter: 'blur(32px) saturate(150%)',
+  WebkitBackdropFilter: 'blur(32px) saturate(150%)',
 }
 
 const cleanInputStyle: React.CSSProperties = {
