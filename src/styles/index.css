@@ -1,10 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap');
 
 /* ============================================================
-   LUCRO IA — Design Tokens (paleta Bertoni)
-   Base azul-marinho quase-preto + azul-roxo como cor primária
-   de acção, vermelho reservado para risco/stop/perda, branco
-   para texto e contraste máximo.
+   SINISTRO X — Design Tokens
+   Base preta profunda + vidro (glassmorphism), branco para texto
+   e contraste máximo, vermelho como cor de marca/acção de risco
+   (o "X" do nome), azul-roxo reservado para acções secundárias
+   (botões primários, foco, links).
    ============================================================ */
 
 :root {
@@ -16,13 +17,13 @@
   --border:        #1f2226;
   --border-hi:     #2a2e34;
 
-  /* Azul-roxo — acção primária, links, foco (inspirado em --color3/--color4 do Bertoni) */
+  /* Azul-roxo — acção secundária, links, foco (botões primários) */
   --blue:          #5862BF;
   --blue-hi:       #7683FF;
   --blue-dim:      #3a4390;
   --blue-glow:     rgba(118, 131, 255, 0.35);
 
-  /* Vermelho — risco, perda, parar, sair */
+  /* Vermelho — cor de marca (o "X" de Sinistro X), risco, perda, parar, sair */
   --red:           #e9203f;
   --red-hi:        #ff3a57;
   --red-dim:       #7a0f20;
@@ -67,8 +68,9 @@ body {
   overflow-x: hidden;
 }
 
-/* Fundo com leve textura radial — dá profundidade sem ruído.
-   Tons de azul-roxo (Bertoni --color3) em vez do azul puro anterior. */
+/* Fundo com leve textura radial — preto profundo com um toque de
+   vermelho (marca) no topo e um azul-roxo bem discreto, para dar
+   profundidade sem competir com o preto/vidro da identidade nova. */
 body::before {
   content: '';
   position: fixed;
@@ -76,8 +78,8 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(circle at 15% -10%, rgba(118, 131, 255, 0.08) 0%, transparent 45%),
-    radial-gradient(circle at 100% 10%, rgba(233, 32, 63, 0.04) 0%, transparent 40%);
+    radial-gradient(circle at 50% -10%, rgba(233, 32, 63, 0.07) 0%, transparent 45%),
+    radial-gradient(circle at 100% 10%, rgba(118, 131, 255, 0.04) 0%, transparent 40%);
 }
 
 #root {
@@ -174,11 +176,17 @@ a {
   border-radius: var(--radius-lg);
 }
 
+/* Texto de marca (wordmark) usado em vários cabeçalhos — "SINISTRO X".
+   Praticamente branco sólido, com uma transição só nos últimos
+   caracteres para vermelho: aproxima em qualquer título com esta
+   classe o mesmo efeito usado explicitamente no ecrã de login
+   ("SINISTRO" a branco + "X" a vermelho), sem precisar de separar
+   spans em cada sítio onde a classe é usada. */
 .logo-text {
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.18em;
-  background: linear-gradient(120deg, var(--white) 0%, var(--blue-hi) 55%, var(--red-hi) 100%);
+  background: linear-gradient(120deg, var(--white) 0%, var(--white) 78%, var(--red-hi) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
