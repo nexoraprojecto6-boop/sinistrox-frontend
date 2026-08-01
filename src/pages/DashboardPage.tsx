@@ -46,8 +46,8 @@ function DashboardLoader() {
       background: 'rgba(7,11,20,0.97)', backdropFilter: 'blur(10px)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <img src={logo} alt="Lucro IA" style={{ height: 30, width: 'auto', objectFit: 'contain' }} />
-        <h1 className="logo-text" style={{ fontSize: 22 }}>LUCRO IA</h1>
+        <img src={logo} alt="Sinistro X" style={{ height: 30, width: 'auto', objectFit: 'contain' }} />
+        <h1 className="logo-text" style={{ fontSize: 22 }}>SINISTRO X</h1>
       </div>
       <div style={{ position: 'relative', width: 56, height: 56 }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: 'var(--blue-hi)', borderRightColor: 'rgba(24,87,255,0.15)', animation: 'spin 0.85s linear infinite' }} />
@@ -102,8 +102,8 @@ function DashboardInner() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Logo em PNG (sem fundo) — troca o src pelo ficheiro do teu logo.
               Tamanho exato: ajusta o height se o logo tiver proporções diferentes. */}
-          <img src={logo} alt="Lucro IA" style={{ height: 26, width: 'auto', objectFit: 'contain' }} />
-          <span className="logo-text" style={{ fontSize: 18 }}>LUCRO IA</span>
+          <img src={logo} alt="Sinistro X" style={{ height: 26, width: 'auto', objectFit: 'contain' }} />
+          <span className="logo-text" style={{ fontSize: 18 }}>SINISTRO X</span>
         </div>
 
         {/* Botão DEPOSITAR + Botão MENU + sino de notificação sobreposto no canto ── */}
