@@ -4,6 +4,7 @@ import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import logo from '../logo.png'
+import RegisterPage from './RegisterPage'
 import { inputStyle, labelStyle, errorTextStyle } from '../lib/glass'
 
 // Ícones inline (sem dependência de react-icons)
@@ -128,6 +129,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeLang, setActiveLang] = useState('ao')
   const [showTerms, setShowTerms] = useState(false)
+  const [showRegister, setShowRegister] = useState(false)
 
   // Fonte única de verdade para "o que acontece quando há sessão local":
   //   - termos já aceites  -> segue para /connect-deriv
@@ -184,6 +186,23 @@ export default function LoginPage() {
     // (não mexe na sessão Deriv) e fica no ecrã de entrada.
     setShowTerms(false)
     logoutLocal()
+  }
+
+  // Criar conta: mostra a página RegisterPage (src/pages/RegisterPage.tsx)
+  if (showRegister) {
+    return (
+      <>
+        <RegisterPage />
+        <button
+          type="button"
+          onClick={() => setShowRegister(false)}
+          className="btn-ghost hdr-btn"
+          style={{ position: 'fixed', top: 'calc(12px + env(safe-area-inset-top, 0px))', left: 12, zIndex: 700 }}
+        >
+          ← Voltar ao login
+        </button>
+      </>
+    )
   }
 
   if (isLocalLoading) {
@@ -262,7 +281,7 @@ export default function LoginPage() {
 
         <button
           type="button"
-          onClick={() => navigate('/register')}
+          onClick={() => setShowRegister(true)}
           disabled={isSubmitting}
           className="btn-ghost"
           style={{ width: '100%', minHeight: 44, marginTop: 20, fontSize: 13.5, fontWeight: 600 }}
