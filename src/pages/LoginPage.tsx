@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import logo from '../logo.png'
-import RegisterPage from './RegisterPage'
 import { inputStyle, labelStyle, errorTextStyle } from '../lib/glass'
 
 // Ícones inline (sem dependência de react-icons)
@@ -121,7 +120,7 @@ function termsAlreadyAccepted(): boolean {
 export default function LoginPage() {
   const navigate = useNavigate()
   const { show, hide } = useLoader() as any // hide pode não existir consoante a versão do contexto
-  const { isLocalAuthenticated, isLocalLoading, loginLocal, logoutLocal } = useAuth()
+  const { isLocalAuthenticated, isLocalLoading, loginLocal, logout } = useAuth() as any
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -129,45 +128,66 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeLang, setActiveLang] = useState('ao')
   const [showTerms, setShowTerms] = useState(false)
-  const [showRegister, setShowRegister] = useState(false)
 
-  // Fonte única de verdade para "o que acontece quando há sessão local":
-  //   - termos já aceites  -> segue para /connect-deriv
-  //   - termos por aceitar -> mostra o modal
+  // Distingue "já estava autenticado ao abrir a página" (ex: refresh)
+  // de "acabou de fazer login agora mesmo, aqui, neste formulário".
+  // Sem isto, o useEffect abaixo navega sozinho para /connect-deriv
+  // assim que loginLocal() atualiza o contexto — antes do modal de
+  // termos ter hipótese de aparecer.
+  const justLoggedInRef = useRef(false)
+
   useEffect(() => {
-    if (isLocalLoading || !isLocalAuthenticated) return
-    if (termsAlreadyAccepted()) {
-      navigate('/connect-deriv', { replace: true })
-    } else {
-      setShowTerms(true)
+    if (!isLocalLoading && isLocalAuthenticated && !justLoggedInRef.current) {
+      navigate('/connect-deriv')
     }
-  }, [isLocalLoading, isLocalAuthenticated, navigate])
+  }, [isLocalLoading, isLocalAuthenticated])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    const cleanEmail = email.trim()
-    if (!cleanEmail || !password) {
+    if (!email.trim() || !password) {
       setError('Preenche o email e a senha.')
-      return
-    }
-    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
-      setError('Email inválido.')
       return
     }
 
     setIsSubmitting(true)
     show('A entrar...')
     try {
-      // O backend entra se o email existe e cria a conta se for novo.
-      const res = await api.loginLocal(cleanEmail, password)
-      loginLocal(res.token, res.user) // o useEffect acima decide o passo seguinte
+      const res = await api.loginLocal(email.trim(), password)
+
+      // Marca ANTES de atualizar o contexto de auth, para o useEffect
+      // não disparar a navegação automática enquanto decidimos aqui
+      // se é preciso mostrar o modal de termos primeiro.
+      justLoggedInRef.current = true
+      loginLocal(res.token, res.user)
+
+      // Depois de autenticar, mostra o modal de Termos e Condições no
+      // centro do ecrã antes de avançar — só passa para a próxima página
+      // quando o utilizador confirmar que leu e aceita.
+      let alreadyAccepted = false
+      try { alreadyAccepted = localStorage.getItem(TERMS_ACCEPTED_KEY) === '1' } catch { /* ignora */ }
+
+      try { hide?.() } catch { /* opcional */ }
+
+      if (alreadyAccepted) {
+        navigate('/connect-deriv')
+      } else {
+        setShowTerms(true)
+      }
     } catch (err: any) {
-      setError(err?.message || 'Não foi possível entrar.')
+      // Credenciais erradas → 401 do backend. Mostramos a mensagem certa
+      // em vez de deixar o loader a girar para sempre.
+      const msg = err?.message || 'Não foi possível entrar.'
+      if (msg.includes('401') || msg.toLowerCase().includes('inválid') || msg.toLowerCase().includes('incorret')) {
+        setError('Email ou senha incorretos.')
+      } else {
+        setError(msg)
+      }
+      justLoggedInRef.current = false
+      try { hide?.() } catch { /* opcional, LoaderContext pode não ter hide() */ }
     } finally {
       setIsSubmitting(false)
-      try { hide?.() } catch { /* LoaderContext pode não ter hide() */ }
     }
   }
 
@@ -178,31 +198,22 @@ export default function LoginPage() {
   const handleAcceptTerms = () => {
     try { localStorage.setItem(TERMS_ACCEPTED_KEY, '1') } catch { /* ignora */ }
     setShowTerms(false)
-    navigate('/connect-deriv', { replace: true })
+    navigate('/connect-deriv')
   }
 
   const handleDeclineTerms = () => {
-    // Sem aceitar os termos não há acesso: termina só a sessão local
-    // (não mexe na sessão Deriv) e fica no ecrã de entrada.
+    // Sem aceitar os termos não há acesso — termina a sessão local e
+    // volta ao ecrã de login.
     setShowTerms(false)
-    logoutLocal()
-  }
-
-  // Criar conta: mostra a página RegisterPage (src/pages/RegisterPage.tsx)
-  if (showRegister) {
-    return (
-      <>
-        <RegisterPage />
-        <button
-          type="button"
-          onClick={() => setShowRegister(false)}
-          className="btn-ghost hdr-btn"
-          style={{ position: 'fixed', top: 'calc(12px + env(safe-area-inset-top, 0px))', left: 12, zIndex: 700 }}
-        >
-          ← Voltar ao login
-        </button>
-      </>
-    )
+    justLoggedInRef.current = false
+    try {
+      if (typeof logout === 'function') {
+        logout()
+      } else {
+        localStorage.removeItem('token')
+      }
+    } catch { /* ignora */ }
+    navigate('/login', { replace: true })
   }
 
   if (isLocalLoading) {
@@ -279,15 +290,13 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => setShowRegister(true)}
-          disabled={isSubmitting}
+        <Link
+          to="/register"
           className="btn-ghost"
-          style={{ width: '100%', minHeight: 44, marginTop: 20, fontSize: 13.5, fontWeight: 600 }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 44, marginTop: 20, fontSize: 13.5, fontWeight: 600 }}
         >
           Criar conta
-        </button>
+        </Link>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 {BRAND_NAME}</p>
