@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AO, BR, PT, US, ES } from 'country-flag-icons/react/3x2'
 import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
@@ -30,6 +29,51 @@ function IoOpenOutline({ size = 18, style }: { size?: number; style?: React.CSSP
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
     </svg>
   )
+}
+
+// Bandeiras inline (sem dependência de country-flag-icons)
+type FlagProps = { style?: React.CSSProperties }
+const flagSvg = (style: React.CSSProperties | undefined, children: React.ReactNode) => (
+  <svg viewBox="0 0 30 20" preserveAspectRatio="xMidYMid slice" style={style} aria-hidden="true">
+    {children}
+  </svg>
+)
+
+function AO({ style }: FlagProps) {
+  return flagSvg(style, <>
+    <rect width="30" height="10" fill="#cc092f" />
+    <rect y="10" width="30" height="10" fill="#000" />
+    <circle cx="15" cy="10" r="3.4" fill="none" stroke="#ffcb00" strokeWidth="1.3" />
+  </>)
+}
+function BR({ style }: FlagProps) {
+  return flagSvg(style, <>
+    <rect width="30" height="20" fill="#009c3b" />
+    <polygon points="15,2.5 27,10 15,17.5 3,10" fill="#ffdf00" />
+    <circle cx="15" cy="10" r="4.2" fill="#002776" />
+  </>)
+}
+function PT({ style }: FlagProps) {
+  return flagSvg(style, <>
+    <rect width="12" height="20" fill="#006600" />
+    <rect x="12" width="18" height="20" fill="#ff0000" />
+    <circle cx="12" cy="10" r="3.2" fill="#ffcc00" />
+  </>)
+}
+function US({ style }: FlagProps) {
+  return flagSvg(style, <>
+    <rect width="30" height="20" fill="#fff" />
+    {[0, 2, 4, 6, 8, 10, 12].map((i) => (
+      <rect key={i} y={(i * 20) / 13} width="30" height={20 / 13} fill="#b22234" />
+    ))}
+    <rect width="12" height={(7 * 20) / 13} fill="#3c3b6e" />
+  </>)
+}
+function ES({ style }: FlagProps) {
+  return flagSvg(style, <>
+    <rect width="30" height="20" fill="#aa151b" />
+    <rect y="5" width="30" height="10" fill="#f1bf00" />
+  </>)
 }
 
 // Nome da plataforma (muda só aqui)
