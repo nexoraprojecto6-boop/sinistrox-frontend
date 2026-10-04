@@ -4,6 +4,7 @@ import { AO, BR, PT, US, ES } from 'country-flag-icons/react/3x2'
 import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
+import logo from '../logo.png'
 import { inputStyle, labelStyle, errorTextStyle } from '../lib/glass'
 
 // Ícones inline (sem dependência de react-icons)
@@ -173,6 +174,7 @@ export default function PhantomLogin() {
       {/* Contentor de entrada (sem quadrado/borda) */}
       <div className="fade-in" style={cardStyle}>
         <div style={{ textAlign: 'center' }}>
+          <img src={logo} alt={BRAND_NAME} style={{ height: 44, width: 'auto', display: 'block', margin: '0 auto 10px' }} />
           <h1 className="brand-text brand-text--lg">{BRAND_NAME.toUpperCase()}</h1>
         </div>
 
