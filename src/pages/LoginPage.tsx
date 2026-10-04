@@ -1,10 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { IoOpenOutline, IoMailOutline, IoLockClosedOutline } from 'react-icons/io5'
+import { AO, BR, PT, US, ES } from 'country-flag-icons/react/3x2'
 import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import { inputStyle, labelStyle, errorTextStyle } from '../lib/glass'
-import logo from '../logo.png'
+
+// Nome da plataforma (muda só aqui)
+const BRAND_NAME = 'Phantom FX'
 
 // ---------------------------------------------------------------------------
 // Bandeiras (apenas visual — não altera nenhuma lógica de autenticação/i18n
@@ -12,39 +16,42 @@ import logo from '../logo.png'
 // usar o `activeLang` abaixo).
 // ---------------------------------------------------------------------------
 const FLAGS = [
-  { code: 'ao', emoji: '🇦🇴', label: 'Angola' },
-  { code: 'br', emoji: '🇧🇷', label: 'Brasil' },
-  { code: 'pt', emoji: '🇵🇹', label: 'Portugal' },
-  { code: 'us', emoji: '🇺🇸', label: 'English' },
-  { code: 'es', emoji: '🇪🇸', label: 'Español' },
+  { code: 'ao', Flag: AO, label: 'Angola' },
+  { code: 'br', Flag: BR, label: 'Brasil' },
+  { code: 'pt', Flag: PT, label: 'Portugal' },
+  { code: 'us', Flag: US, label: 'English' },
+  { code: 'es', Flag: ES, label: 'Español' },
 ]
 
 // ---------------------------------------------------------------------------
-// Termos e Condições — mostrados no modal flutuante depois do login.
-// O texto da Sinistro X fica embutido; o da Deriv só é linkado (é a Deriv
-// quem detém e atualiza o próprio documento legal).
+// Termos e Condições — mostrados no modal depois do login.
+// O texto da Nexora fica embutido; o da Deriv só é linkado.
 // ---------------------------------------------------------------------------
-const TERMOS_SINISTRO = `TERMOS E CONDIÇÕES — SINISTRO X
+const TERMOS_NEXORA = `TERMOS E CONDIÇÕES — ${BRAND_NAME.toUpperCase()}
 
 1. ACEITAÇÃO DOS TERMOS
-Ao utilizar a plataforma Sinistro X, o utilizador aceita integralmente os presentes termos e condições.
+Ao utilizar a plataforma ${BRAND_NAME}, o utilizador aceita integralmente os presentes termos e condições.
 
 2. RISCOS
 O trading envolve riscos elevados de perda de capital. Os resultados passados não garantem resultados futuros. O utilizador é o único responsável pelas suas decisões de investimento.
 
 3. RESPONSABILIDADE
-A Sinistro X não se responsabiliza por perdas financeiras resultantes do uso da plataforma.
+A ${BRAND_NAME} não se responsabiliza por perdas financeiras resultantes do uso da plataforma.
 
 4. CONTACTO
-Para questões, contacte-nos via WhatsApp.`
+Para questões, contacte-nos via WhatsApp: +244976289984`
 
 const DERIV_TERMS_URL = 'https://deriv.com/tnc/general-terms.pdf'
-const TERMS_ACCEPTED_KEY = 'sinistro_terms_accepted_v1'
+const TERMS_ACCEPTED_KEY = 'nexora_terms_accepted_v1'
 
-export default function LoginPage() {
+function termsAlreadyAccepted(): boolean {
+  try { return localStorage.getItem(TERMS_ACCEPTED_KEY) === '1' } catch { return false }
+}
+
+export default function PhantomLogin() {
   const navigate = useNavigate()
   const { show, hide } = useLoader() as any // hide pode não existir consoante a versão do contexto
-  const { isLocalAuthenticated, isLocalLoading, loginLocal, logout } = useAuth() as any
+  const { isLocalAuthenticated, isLocalLoading, loginLocal, logoutLocal } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -53,65 +60,43 @@ export default function LoginPage() {
   const [activeLang, setActiveLang] = useState('ao')
   const [showTerms, setShowTerms] = useState(false)
 
-  // Distingue "já estava autenticado ao abrir a página" (ex: refresh)
-  // de "acabou de fazer login agora mesmo, aqui, neste formulário".
-  // Sem isto, o useEffect abaixo navega sozinho para /connect-deriv
-  // assim que loginLocal() atualiza o contexto — antes do modal de
-  // termos ter hipótese de aparecer.
-  const justLoggedInRef = useRef(false)
-
+  // Fonte única de verdade para "o que acontece quando há sessão local":
+  //   - termos já aceites  -> segue para /connect-deriv
+  //   - termos por aceitar -> mostra o modal
   useEffect(() => {
-    if (!isLocalLoading && isLocalAuthenticated && !justLoggedInRef.current) {
-      navigate('/connect-deriv')
+    if (isLocalLoading || !isLocalAuthenticated) return
+    if (termsAlreadyAccepted()) {
+      navigate('/connect-deriv', { replace: true })
+    } else {
+      setShowTerms(true)
     }
-  }, [isLocalLoading, isLocalAuthenticated])
+  }, [isLocalLoading, isLocalAuthenticated, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim()
+    if (!cleanEmail || !password) {
       setError('Preenche o email e a senha.')
+      return
+    }
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      setError('Email inválido.')
       return
     }
 
     setIsSubmitting(true)
     show('A entrar...')
     try {
-      const res = await api.loginLocal(email.trim(), password)
-
-      // Marca ANTES de atualizar o contexto de auth, para o useEffect
-      // não disparar a navegação automática enquanto decidimos aqui
-      // se é preciso mostrar o modal de termos primeiro.
-      justLoggedInRef.current = true
-      loginLocal(res.token, res.user)
-
-      // Depois de autenticar, mostra o modal de Termos e Condições no
-      // centro do ecrã antes de avançar — só passa para a próxima página
-      // quando o utilizador confirmar que leu e aceita.
-      let alreadyAccepted = false
-      try { alreadyAccepted = localStorage.getItem(TERMS_ACCEPTED_KEY) === '1' } catch { /* ignora */ }
-
-      try { hide?.() } catch { /* opcional */ }
-
-      if (alreadyAccepted) {
-        navigate('/connect-deriv')
-      } else {
-        setShowTerms(true)
-      }
+      // O backend entra se o email existe e cria a conta se for novo.
+      const res = await api.loginLocal(cleanEmail, password)
+      loginLocal(res.token, res.user) // o useEffect acima decide o passo seguinte
     } catch (err: any) {
-      // Credenciais erradas → 401 do backend. Mostramos a mensagem certa
-      // em vez de deixar o loader a girar para sempre.
-      const msg = err?.message || 'Não foi possível entrar.'
-      if (msg.includes('401') || msg.toLowerCase().includes('inválid') || msg.toLowerCase().includes('incorret')) {
-        setError('Email ou senha incorretos.')
-      } else {
-        setError(msg)
-      }
-      justLoggedInRef.current = false
-      try { hide?.() } catch { /* opcional, LoaderContext pode não ter hide() */ }
+      setError(err?.message || 'Não foi possível entrar.')
     } finally {
       setIsSubmitting(false)
+      try { hide?.() } catch { /* LoaderContext pode não ter hide() */ }
     }
   }
 
@@ -122,22 +107,14 @@ export default function LoginPage() {
   const handleAcceptTerms = () => {
     try { localStorage.setItem(TERMS_ACCEPTED_KEY, '1') } catch { /* ignora */ }
     setShowTerms(false)
-    navigate('/connect-deriv')
+    navigate('/connect-deriv', { replace: true })
   }
 
   const handleDeclineTerms = () => {
-    // Sem aceitar os termos não há acesso — termina a sessão local e
-    // volta ao ecrã de login.
+    // Sem aceitar os termos não há acesso: termina só a sessão local
+    // (não mexe na sessão Deriv) e fica no ecrã de entrada.
     setShowTerms(false)
-    justLoggedInRef.current = false
-    try {
-      if (typeof logout === 'function') {
-        logout()
-      } else {
-        localStorage.removeItem('token')
-      }
-    } catch { /* ignora */ }
-    navigate('/login', { replace: true })
+    logoutLocal()
   }
 
   if (isLocalLoading) {
@@ -150,8 +127,8 @@ export default function LoginPage() {
 
   return (
     <div style={pageWrapStyle}>
-      {/* Fundo preto elegante em vidro (glassmorphism) */}
-      <GlassBlackBackground />
+      {/* Fundo com reflexo tipo gráfico de trading */}
+      <GlassChartBackground />
 
       {/* Bandeiras — topo, centradas na horizontal */}
       <div style={flagsRowStyle}>
@@ -164,52 +141,43 @@ export default function LoginPage() {
             onClick={() => setActiveLang(f.code)}
             style={flagBtnStyle(activeLang === f.code)}
           >
-            <span style={{ fontSize: 17, lineHeight: 1 }}>{f.emoji}</span>
+            <f.Flag style={{ width: 20, height: 14, borderRadius: 2, display: 'block' }} />
           </button>
         ))}
       </div>
 
-      {/* Cartão de login — liso, sem moldura */}
-      <div className="card fade-in" style={cardStyle}>
+      {/* Contentor de entrada (sem quadrado/borda) */}
+      <div className="fade-in" style={cardStyle}>
         <div style={{ textAlign: 'center' }}>
-          {/* Espaço reservado para o logo em PNG (sem fundo) — troca o src abaixo
-              pelo ficheiro do teu logo. O tamanho acompanha o texto "SINISTRO X". */}
-          <img
-            src={logo}
-            alt="Sinistro X"
-            style={{ height: 56, width: 'auto', marginBottom: 10, objectFit: 'contain' }}
-          />
-          {/* Nome da marca: "SINISTRO" a branco, "X" a vermelho — sem gradiente,
-              cor sólida para máximo contraste sobre o fundo preto em vidro. */}
-          <h1 style={{
-            fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: 0.5,
-            fontSize: 30, marginBottom: 4,
-          }}>
-            <span style={{ color: 'var(--white)' }}>SINISTRO </span>
-            <span style={{ color: 'var(--red-hi)', textShadow: '0 0 18px var(--red-glow)' }}>X</span>
-          </h1>
+          <h1 className="brand-text brand-text--lg">{BRAND_NAME.toUpperCase()}</h1>
         </div>
 
         <form onSubmit={handleSubmit} style={{ marginTop: 26 }}>
-          <div style={{ marginBottom: 18 }}>
+          <div style={{ marginBottom: 16 }}>
             <label style={labelStyle} htmlFor="email">Email</label>
-            <input
-              id="email" type="email" autoComplete="email" style={cleanInputStyle}
-              value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="teu@email.com" disabled={isSubmitting}
-            />
+            <div style={fieldWrapStyle}>
+              <IoMailOutline size={18} style={fieldIconStyle} />
+              <input
+                id="email" type="email" autoComplete="email" style={cleanInputStyle}
+                value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="teu@email.com" disabled={isSubmitting}
+              />
+            </div>
           </div>
 
           <div style={{ marginBottom: 8 }}>
             <label style={labelStyle} htmlFor="password">Senha</label>
-            <input
-              id="password" type="password" autoComplete="current-password" style={cleanInputStyle}
-              value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••" disabled={isSubmitting}
-            />
+            <div style={fieldWrapStyle}>
+              <IoLockClosedOutline size={18} style={fieldIconStyle} />
+              <input
+                id="password" type="password" autoComplete="current-password" style={cleanInputStyle}
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres" disabled={isSubmitting}
+              />
+            </div>
           </div>
 
-          <div style={{ textAlign: 'right', marginBottom: 22 }}>
+          <div style={{ textAlign: 'right', marginBottom: 20 }}>
             <button type="button" onClick={handleForgotPassword} style={linkBtnStyle}>
               Esqueci a senha
             </button>
@@ -222,35 +190,26 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '26px 0' }}>
-          <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
-          <p style={{ color: 'var(--text-faint)', fontSize: 12 }}>Não tem conta?</p>
-          <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
-        </div>
+        <p style={{ color: 'var(--text-faint)', fontSize: 12, textAlign: 'center', marginTop: 20, lineHeight: 1.6 }}>
+          Primeira vez aqui? Basta escrever o teu email e uma senha — a conta é criada automaticamente.
+        </p>
 
-        <div style={{ textAlign: 'center' }}>
-          <Link to="/register" style={{ color: 'var(--blue-hi)', fontSize: 14, fontWeight: 600 }}>
-            Criar conta
-          </Link>
-        </div>
-
-        <div style={{ marginTop: 30, textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 Sinistro X</p>
+        <div style={{ marginTop: 20, textAlign: 'center' }}>
+          <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 {BRAND_NAME}</p>
         </div>
       </div>
 
-      {/* Modal flutuante, centrado — Termos e Condições da Sinistro X e da
-          Deriv, exigido logo após o login antes de continuar */}
+      {/* Modal — Termos e Condições da Nexora e da Deriv */}
       {showTerms && <TermsModal onAccept={handleAcceptTerms} onDecline={handleDeclineTerms} />}
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Modal de Termos e Condições — flutua no centro da página
+// Modal de Termos e Condições
 // ---------------------------------------------------------------------------
 function TermsModal({ onAccept, onDecline }: { onAccept: () => void; onDecline: () => void }) {
-  const [tab, setTab] = useState<'sinistro' | 'deriv'>('sinistro')
+  const [tab, setTab] = useState<'nexora' | 'deriv'>('nexora')
 
   return (
     <div className="glass-overlay" style={{ zIndex: 900 }}>
@@ -259,42 +218,42 @@ function TermsModal({ onAccept, onDecline }: { onAccept: () => void; onDecline: 
           <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 16 }}>Termos e Condições</p>
         </div>
 
-        {/* Tabs — Sinistro X / Deriv */}
+        {/* Tabs — Nexora / Deriv */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <button
-            onClick={() => setTab('sinistro')}
+            onClick={() => setTab('nexora')}
             style={{
-              flex: 1, padding: '12px 0', fontSize: 13, fontWeight: 700, letterSpacing: 0.5,
-              color: tab === 'sinistro' ? 'var(--white)' : 'var(--text-faint)',
-              borderBottom: tab === 'sinistro' ? '2px solid var(--red-hi)' : '2px solid transparent',
+              flex: 1, padding: '14px 0', fontSize: 13, fontWeight: 700, letterSpacing: 0.5,
+              color: tab === 'nexora' ? 'var(--white)' : 'var(--text-faint)',
+              borderBottom: tab === 'nexora' ? '2px solid var(--blue-hi)' : '2px solid transparent',
             }}
           >
-            SINISTRO X
+            {BRAND_NAME.toUpperCase()}
           </button>
           <button
             onClick={() => setTab('deriv')}
             style={{
-              flex: 1, padding: '12px 0', fontSize: 13, fontWeight: 700, letterSpacing: 0.5,
+              flex: 1, padding: '14px 0', fontSize: 13, fontWeight: 700, letterSpacing: 0.5,
               color: tab === 'deriv' ? 'var(--white)' : 'var(--text-faint)',
-              borderBottom: tab === 'deriv' ? '2px solid var(--red-hi)' : '2px solid transparent',
+              borderBottom: tab === 'deriv' ? '2px solid var(--blue-hi)' : '2px solid transparent',
             }}
           >
             DERIV
           </button>
         </div>
 
-        <div className="glass-sheet-body" style={{ maxHeight: 320, padding: 18 }}>
-          {tab === 'sinistro' ? (
-            <pre style={{ color: 'var(--text-dim)', fontSize: 11.5, lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'var(--font-body)' }}>
-              {TERMOS_SINISTRO}
+        <div className="glass-sheet-body" style={{ padding: 18 }}>
+          {tab === 'nexora' ? (
+            <pre style={{ color: 'var(--text-dim)', fontSize: 12, lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'var(--font-body)' }}>
+              {TERMOS_NEXORA}
             </pre>
           ) : (
             <div>
-              <p style={{ color: 'var(--text-dim)', fontSize: 12.5, lineHeight: 1.7, marginBottom: 14 }}>
-                Ao ligar a tua conta Deriv através da Sinistro X, estás também
+              <p style={{ color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
+                Ao ligar a tua conta Deriv através da {BRAND_NAME}, estás também
                 sujeito aos termos e condições gerais da Deriv, que regulam a
                 abertura de conta, depósitos, levantamentos e a negociação de
-                contratos na própria Deriv. A Sinistro X não altera nem
+                contratos na própria Deriv. A {BRAND_NAME} não altera nem
                 substitui esses termos.
               </p>
               <a
@@ -303,14 +262,11 @@ function TermsModal({ onAccept, onDecline }: { onAccept: () => void; onDecline: 
                 rel="noopener noreferrer"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                  color: 'var(--red-hi)', fontSize: 13, fontWeight: 600,
+                  color: 'var(--blue-hi)', fontSize: 13, fontWeight: 600,
                 }}
               >
                 Ver termos completos da Deriv
-                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-                  <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
+                <IoOpenOutline size={14} />
               </a>
             </div>
           )}
@@ -330,70 +286,103 @@ function TermsModal({ onAccept, onDecline }: { onAccept: () => void; onDecline: 
 }
 
 // ---------------------------------------------------------------------------
-// Fundo preto elegante em vidro (glassmorphism) — puramente decorativo.
-//
-// CORREÇÃO/REDESIGN: versão anterior tinha um gráfico de linha azul/vermelho
-// a "flutuar" por cima do fundo, o que competia visualmente com o logo e
-// puxava para a paleta antiga (Lucro IA). Substituído por um fundo preto
-// profundo com camadas de vidro (glass) sobrepostas — brilhos radiais muito
-// subtis a vermelho (cor da marca) e um véu de vidro com leve textura de
-// ruído, sem elementos figurativos a competir com o cartão de login.
+// Fundo animado — gráfico de mercado (velas + linha) em movimento contínuo
+// (puramente decorativo). O padrão repete-se a cada 1200 unidades, por isso
+// o loop é perfeito, sem saltos.
 // ---------------------------------------------------------------------------
-function GlassBlackBackground() {
+const MKT_W = 1200
+const MKT_STEP = 30
+const MKT_N = MKT_W / MKT_STEP
+
+const mktPrice = (x: number) =>
+  420 - (
+    70 * Math.sin((2 * Math.PI * x / MKT_W) * 2) +
+    45 * Math.sin((2 * Math.PI * x / MKT_W) * 5 + 1) +
+    25 * Math.sin((2 * Math.PI * x / MKT_W) * 11 + 2)
+  )
+
+const mktRnd = (i: number) => {
+  const s = Math.sin(i * 12.9898 + 78.233) * 43758.5453
+  return s - Math.floor(s)
+}
+
+const MKT_CANDLES = Array.from({ length: MKT_N }, (_, i) => {
+  const x = i * MKT_STEP + MKT_STEP / 2
+  const open = mktPrice(x - MKT_STEP / 2) + (mktRnd(i) - 0.5) * 20
+  const close = mktPrice(x + MKT_STEP / 2) + (mktRnd(i + 100) - 0.5) * 20
+  const high = Math.min(open, close) - mktRnd(i + 200) * 22 - 4
+  const low = Math.max(open, close) + mktRnd(i + 300) * 22 + 4
+  return { x, open, close, high, low, up: close <= open }
+})
+
+const MKT_LINE =
+  'M' +
+  Array.from({ length: MKT_N + 1 }, (_, k) => `${k * MKT_STEP},${mktPrice(k * MKT_STEP).toFixed(1)}`).join(' L')
+
+function MarketSeries({ offset }: { offset: number }) {
+  return (
+    <g transform={`translate(${offset} 0)`}>
+      <path d={MKT_LINE} fill="none" stroke="rgba(79,139,255,0.55)" strokeWidth="2" />
+      {MKT_CANDLES.map((c, i) => {
+        const color = c.up ? '#0ecb81' : '#f6465d'
+        const top = Math.min(c.open, c.close)
+        const h = Math.max(Math.abs(c.open - c.close), 2)
+        return (
+          <g key={i}>
+            <line x1={c.x} x2={c.x} y1={c.high} y2={c.low} stroke={color} strokeWidth="1.5" />
+            <rect x={c.x - 6} y={top} width="12" height={h} fill={color} />
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+function GlassChartBackground() {
   return (
     <>
       <style>{`
-        @keyframes sinistro-glow {
-          0%   { opacity: 0.5; transform: scale(1); }
-          50%  { opacity: 0.85; transform: scale(1.06); }
-          100% { opacity: 0.5; transform: scale(1); }
+        @keyframes nexora-scroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-${MKT_W}px); }
         }
-        @keyframes sinistro-sheen {
-          0%   { opacity: 0.3; }
-          50%  { opacity: 0.55; }
-          100% { opacity: 0.3; }
+        @keyframes nexora-sheen {
+          0%   { opacity: 0.35; }
+          50%  { opacity: 0.6; }
+          100% { opacity: 0.35; }
         }
       `}</style>
 
-      {/* base — preto profundo, quase absoluto */}
       <div style={{
         position: 'fixed', inset: 0,
-        background: 'radial-gradient(circle at 50% -10%, #0c0c0e 0%, #050506 55%, #000000 100%)',
+        background: 'linear-gradient(160deg, #05070c 0%, #0a0e17 45%, #05070c 100%)',
         zIndex: 0,
       }} />
 
-      {/* brilho vermelho subtil, no eixo do "X" da marca — topo */}
-      <div style={{
-        position: 'fixed', top: '-18%', left: '50%', transform: 'translateX(-50%)',
-        width: 560, height: 560, borderRadius: '50%', zIndex: 0,
-        background: 'radial-gradient(circle, rgba(233,32,63,0.16) 0%, transparent 68%)',
-        filter: 'blur(10px)',
-        animation: 'sinistro-glow 9s ease-in-out infinite',
-        pointerEvents: 'none',
-      }} />
+      <svg
+        viewBox="0 0 1200 800"
+        preserveAspectRatio="xMidYMid slice"
+        style={{
+          position: 'fixed', inset: 0, width: '100%', height: '100%',
+          opacity: 0.28, zIndex: 0, pointerEvents: 'none',
+        }}
+      >
+        {/* Grelha horizontal fixa */}
+        {[160, 280, 400, 520, 640].map((y) => (
+          <line key={y} x1="0" x2="1200" y1={y} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+        ))}
 
-      {/* brilho azul-roxo bem discreto, canto inferior — profundidade sem competir com o vermelho */}
-      <div style={{
-        position: 'fixed', bottom: '-15%', right: '-10%',
-        width: 480, height: 480, borderRadius: '50%', zIndex: 0,
-        background: 'radial-gradient(circle, rgba(88,98,191,0.10) 0%, transparent 70%)',
-        filter: 'blur(10px)',
-        pointerEvents: 'none',
-      }} />
+        {/* Gráfico em movimento (duas cópias seguidas para o loop ser contínuo) */}
+        <g style={{ animation: 'nexora-scroll 45s linear infinite' }}>
+          <MarketSeries offset={0} />
+          <MarketSeries offset={MKT_W} />
+        </g>
+      </svg>
 
-      {/* véu de vidro por cima de tudo — dá o efeito "vidro limpo" sobre o preto */}
       <div style={{
         position: 'fixed', inset: 0, zIndex: 1,
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 30%, rgba(255,255,255,0) 70%, rgba(255,255,255,0.02) 100%)',
-        backdropFilter: 'blur(0.5px)',
-        animation: 'sinistro-sheen 8s ease-in-out infinite',
-        pointerEvents: 'none',
-      }} />
-
-      {/* vinheta — escurece levemente os cantos, foca o olhar no cartão central */}
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 1,
-        background: 'radial-gradient(circle at 50% 45%, transparent 40%, rgba(0,0,0,0.45) 100%)',
+        background: 'radial-gradient(circle at 50% 20%, rgba(255,255,255,0.05), transparent 60%)',
+        animation: 'nexora-sheen 8s ease-in-out infinite',
         pointerEvents: 'none',
       }} />
     </>
@@ -403,50 +392,56 @@ function GlassBlackBackground() {
 // ---------------------------------------------------------------------------
 // Estilos
 // ---------------------------------------------------------------------------
+
+// O wrapper rola em vez de cortar: com teclado aberto ou ecrã baixo
+// o contentor nunca fica escondido em cima/baixo.
 const pageWrapStyle: React.CSSProperties = {
   position: 'relative', minHeight: '100dvh',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  padding: 16, overflow: 'hidden',
-  background: '#000',
+  display: 'flex', justifyContent: 'center',
+  padding: 'calc(64px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px))',
+  overflowY: 'auto', overflowX: 'hidden',
 }
 
 const flagsRowStyle: React.CSSProperties = {
-  position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+  position: 'fixed', top: 'calc(16px + env(safe-area-inset-top, 0px))', left: '50%', transform: 'translateX(-50%)',
   display: 'flex', gap: 10, zIndex: 20,
 }
 
 const flagBtnStyle = (active: boolean): React.CSSProperties => ({
-  width: 34, height: 34, borderRadius: '50%',
+  width: 38, height: 38, borderRadius: '50%',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  background: active ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.05)',
-  backdropFilter: 'blur(10px)',
+  background: active ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.06)',
   border: 'none',
   cursor: 'pointer', transition: 'all 0.2s ease',
-  boxShadow: active ? '0 0 0 3px rgba(233,32,63,0.18)' : 'none',
+  boxShadow: active ? '0 0 0 3px rgba(118,131,255,0.35)' : 'none',
 })
 
 const cardStyle: React.CSSProperties = {
   position: 'relative', zIndex: 10,
   width: '100%', maxWidth: 400,
-  padding: '48px 36px 36px',
-  borderRadius: 28,
-  border: '1px solid rgba(255,255,255,0.06)',
-  boxShadow: '0 24px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
-  background: 'rgba(255,255,255,0.035)',
-  backdropFilter: 'blur(32px) saturate(150%)',
-  WebkitBackdropFilter: 'blur(32px) saturate(150%)',
+  margin: 'auto 0',
+  padding: 'clamp(24px, 6vw, 44px) clamp(18px, 5vw, 32px) clamp(22px, 5vw, 32px)',
+}
+
+const fieldWrapStyle: React.CSSProperties = {
+  position: 'relative', display: 'flex', alignItems: 'center',
+}
+
+const fieldIconStyle: React.CSSProperties = {
+  position: 'absolute', left: 14, color: 'var(--text-faint)', pointerEvents: 'none',
 }
 
 const cleanInputStyle: React.CSSProperties = {
   ...inputStyle,
-  background: 'transparent',
-  border: 'none',
-  borderBottom: '1px solid rgba(255,255,255,0.14)',
-  borderRadius: 0,
-  padding: '10px 2px',
+  width: '100%',
+  minHeight: 48,
+  background: 'var(--bg-card-hi)',
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  padding: '12px 14px 12px 42px',
 }
 
 const linkBtnStyle: React.CSSProperties = {
-  color: 'var(--text-faint)', fontSize: 12.5,
-  background: 'none', border: 'none', cursor: 'pointer',
+  color: 'var(--text-faint)', fontSize: 13,
+  background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
 }
