@@ -260,18 +260,14 @@ export default function PhantomLogin() {
           </button>
         </form>
 
-        <p style={{ color: 'var(--text-faint)', fontSize: 12, textAlign: 'center', marginTop: 20, lineHeight: 1.6 }}>
-          Primeira vez aqui? Basta escrever o teu email e uma senha — a conta é criada automaticamente.
-        </p>
-
         <button
           type="button"
           onClick={() => navigate('/register')}
           disabled={isSubmitting}
           className="btn-ghost"
-          style={{ width: '100%', minHeight: 44, marginTop: 16, fontSize: 13.5, fontWeight: 600 }}
+          style={{ width: '100%', minHeight: 44, marginTop: 20, fontSize: 13.5, fontWeight: 600 }}
         >
-          Não tens conta? Registar
+          Criar conta
         </button>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
