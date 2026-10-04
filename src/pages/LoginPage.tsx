@@ -117,7 +117,7 @@ function termsAlreadyAccepted(): boolean {
   try { return localStorage.getItem(TERMS_ACCEPTED_KEY) === '1' } catch { return false }
 }
 
-export default function PhantomLogin() {
+export default function LoginPage() {
   const navigate = useNavigate()
   const { show, hide } = useLoader() as any // hide pode não existir consoante a versão do contexto
   const { isLocalAuthenticated, isLocalLoading, loginLocal, logoutLocal } = useAuth()
@@ -260,9 +260,15 @@ export default function PhantomLogin() {
           </button>
         </form>
 
-        <p style={{ color: 'var(--text-faint)', fontSize: 12, textAlign: 'center', marginTop: 20, lineHeight: 1.6 }}>
-          Primeira vez aqui? Basta escrever o teu email e uma senha — a conta é criada automaticamente.
-        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/register')}
+          disabled={isSubmitting}
+          className="btn-ghost"
+          style={{ width: '100%', minHeight: 44, marginTop: 20, fontSize: 13.5, fontWeight: 600 }}
+        >
+          Criar conta
+        </button>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 {BRAND_NAME}</p>
