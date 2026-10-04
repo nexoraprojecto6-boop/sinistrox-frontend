@@ -77,7 +77,7 @@ function ES({ style }: FlagProps) {
 }
 
 // Nome da plataforma (muda só aqui)
-const BRAND_NAME = 'Phantom FX'
+const BRAND_NAME = 'Sinistro'
 
 // ---------------------------------------------------------------------------
 // Bandeiras (apenas visual — não altera nenhuma lógica de autenticação/i18n
