@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
+import {
+  IoSwapHorizontal, IoPlay, IoPause, IoInformationCircleOutline,
+  IoSettingsOutline, IoClose, IoChevronDown,
+} from 'react-icons/io5'
 import { useAuth } from '../context/AuthContext'
 import { useBots } from '../context/BotsContext'
 import {
@@ -18,32 +22,16 @@ function Portal({ children }: { children: React.ReactNode }) {
   return createPortal(children, document.body)
 }
 
-// ── Ícones inline (sem emoji) ───────────────────────────────
-// Refrescar/trocar — usado nos botões de Conta e Estratégia (igual à imagem)
-function IconRefresh() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" /><path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  )
+// Altura/tamanhos fluidos dos botões da grelha de controlo
+const CTRL_H = 'clamp(40px, 10.5vw, 46px)'
+const CTRL_LABEL: React.CSSProperties = {
+  color: '#e5e5ea', fontSize: 'clamp(11px, 3vw, 13px)', marginBottom: 6, fontWeight: 500,
+  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
 }
-// Play preenchido — botão Vídeo Aula
-function IconPlayFilled() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M6 4l14 8-14 8V4z" />
-    </svg>
-  )
-}
-// "i" de informação — botão Vídeo Aula
-function IconInfoCircle() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="16" x2="12" y2="11" /><line x1="12" y1="8" x2="12.01" y2="8" />
-    </svg>
-  )
+const CTRL_ICON_BOX: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  width: 'clamp(22px, 6vw, 30px)', height: 'clamp(22px, 6vw, 30px)', borderRadius: 4,
+  background: 'rgba(255,255,255,0.08)', color: 'var(--text-dim)',
 }
 
 // ── Input numérico controlado por texto local ──────────────────
@@ -80,8 +68,8 @@ function NumberField({ f, value, onChange }: { f: StrategyFieldDef; value: unkno
         if (!Number.isNaN(parsed)) onChange(parsed)
       }}
       onBlur={() => {}}
-      className="btn-ghost"
-      style={{ width: '100%', padding: '10px 12px', fontSize: 14 }}
+      className="btn-ghost tabular"
+      style={{ width: '100%', padding: '10px 12px', fontSize: 14, minHeight: 40 }}
     />
   )
 }
@@ -89,12 +77,12 @@ function NumberField({ f, value, onChange }: { f: StrategyFieldDef; value: unkno
 function Field({ f, value, onChange }: { f: StrategyFieldDef; value: unknown; onChange: (v: unknown) => void }) {
   if (f.type === 'toggle') {
     return (
-      <button type="button" onClick={() => onChange(!value)} style={{
-        position: 'relative', width: 40, height: 20, borderRadius: 10,
+      <button type="button" onClick={() => onChange(!value)} aria-pressed={!!value} style={{
+        position: 'relative', width: 40, height: 22, borderRadius: 4, flexShrink: 0,
         background: value ? 'var(--blue)' : 'var(--border-hi)', transition: 'background .15s',
       }}>
         <span style={{
-          position: 'absolute', top: 2, left: value ? 22 : 2, width: 16, height: 16, borderRadius: '50%',
+          position: 'absolute', top: 2, left: value ? 20 : 2, width: 18, height: 18, borderRadius: 2,
           background: 'white', transition: 'left .15s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
         }} />
       </button>
@@ -102,11 +90,14 @@ function Field({ f, value, onChange }: { f: StrategyFieldDef; value: unknown; on
   }
   if (f.type === 'select') {
     return (
-      <select value={value as string} onChange={e => onChange(e.target.value)} className="btn-ghost" style={{
-        width: '100%', padding: '10px 12px', fontSize: 14, appearance: 'none', cursor: 'pointer',
-      }}>
-        {f.options?.map(o => <option key={o.value} value={o.value} style={{ background: 'var(--bg-card)' }}>{o.label}</option>)}
-      </select>
+      <div style={{ position: 'relative' }}>
+        <select value={value as string} onChange={e => onChange(e.target.value)} className="btn-ghost" style={{
+          width: '100%', padding: '10px 36px 10px 12px', fontSize: 14, minHeight: 40, appearance: 'none', cursor: 'pointer',
+        }}>
+          {f.options?.map(o => <option key={o.value} value={o.value} style={{ background: 'var(--bg-card)' }}>{o.label}</option>)}
+        </select>
+        <IoChevronDown size={16} color="var(--text-faint)" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+      </div>
     )
   }
   return <NumberField f={f} value={value} onChange={onChange} />
@@ -125,6 +116,10 @@ function sanitizeNumericValues(
     }
   })
   return out
+}
+
+const groupTitle: React.CSSProperties = {
+  color: 'var(--text-faint)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 12,
 }
 
 function ConfigModal({ bot, onClose, onConfirm }: { bot: CatalogBot; onClose: () => void; onConfirm: (c: Partial<BotConfig>) => void }) {
@@ -176,32 +171,36 @@ function ConfigModal({ bot, onClose, onConfirm }: { bot: CatalogBot; onClose: ()
     onClose()
   }
 
+  // Usa o mesmo overlay/sheet do resto da app: nunca passa da altura do
+  // ecrã (dvh), o corpo rola e os botões Cancelar/Confirmar ficam sempre
+  // visíveis; no telemóvel abre como bottom-sheet.
   return (
     <Portal>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 640 }} />
-      <div style={{ position: 'fixed', inset: '16px 16px auto', top: 16, zIndex: 650, maxWidth: 520, margin: '0 auto' }}>
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-            <div>
-              <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 14 }}>{bot.name}</p>
+      <div className="glass-overlay" onClick={onClose}>
+        <div className="glass-sheet" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+          <div className="glass-sheet-header">
+            <div style={{ minWidth: 0 }}>
+              <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 15 }}>{bot.name}</p>
               <p style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 2 }}>{STRATEGY_LABELS[bot.strategy]}</p>
             </div>
-            <button onClick={onClose} className="btn-ghost" style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            <button onClick={onClose} aria-label="Fechar" className="btn-ghost" style={{ width: 36, height: 36, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <IoClose size={18} />
+            </button>
           </div>
 
-          <div style={{ padding: '16px 20px', maxHeight: '65vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div className="glass-sheet-body" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
             {Object.entries(configGroups).map(([group, fields]) => (
               <div key={group}>
-                <p style={{ color: 'var(--text-faint)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 }}>{group}</p>
+                <p style={groupTitle}>{group}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {fields.map(f => (
                     <div key={f.key}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <label style={{ color: 'var(--text)', fontSize: 12, fontWeight: 500 }}>{f.label}</label>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                        <label style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500 }}>{f.label}</label>
                         {f.type === 'toggle' && <Field f={f} value={cfgVals[f.key]} onChange={v => setCfgVals(p => ({ ...p, [f.key]: v }))} />}
                       </div>
                       {f.type !== 'toggle' && <Field f={f} value={cfgVals[f.key]} onChange={v => setCfgVals(p => ({ ...p, [f.key]: v }))} />}
-                      {f.description && <p style={{ color: 'var(--text-faint)', fontSize: 10, marginTop: 4 }}>{f.description}</p>}
+                      {f.description && <p style={{ color: 'var(--text-faint)', fontSize: 11, marginTop: 4, lineHeight: 1.4 }}>{f.description}</p>}
                     </div>
                   ))}
                 </div>
@@ -210,14 +209,14 @@ function ConfigModal({ bot, onClose, onConfirm }: { bot: CatalogBot; onClose: ()
 
             {strategyFields.length > 0 && (
               <div>
-                <p style={{ color: 'var(--text-faint)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 }}>Parâmetros da Estratégia</p>
+                <p style={groupTitle}>Parâmetros da Estratégia</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {strategyFields.map(f => (
                     <div key={f.key}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <div>
-                          <label style={{ color: 'var(--text)', fontSize: 12, fontWeight: 500 }}>{f.label}</label>
-                          {f.description && <p style={{ color: 'var(--text-faint)', fontSize: 10 }}>{f.description}</p>}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <label style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500 }}>{f.label}</label>
+                          {f.description && <p style={{ color: 'var(--text-faint)', fontSize: 11, lineHeight: 1.4 }}>{f.description}</p>}
                         </div>
                         {f.type === 'toggle' && <Field f={f} value={prmVals[f.key]} onChange={v => setPrmVals(p => ({ ...p, [f.key]: v }))} />}
                       </div>
@@ -229,7 +228,7 @@ function ConfigModal({ bot, onClose, onConfirm }: { bot: CatalogBot; onClose: ()
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 12, padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', gap: 12, padding: '14px 20px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
             <button onClick={onClose} className="btn-ghost" style={{ padding: '10px 20px', fontSize: 14, fontWeight: 500 }}>Cancelar</button>
             <button onClick={handleConfirm} className="btn-primary" style={{ flex: 1, padding: '10px 0', fontSize: 14 }}>Confirmar</button>
           </div>
@@ -238,6 +237,12 @@ function ConfigModal({ bot, onClose, onConfirm }: { bot: CatalogBot; onClose: ()
     </Portal>
   )
 }
+
+// Passos da barra de progresso (estado real do bot)
+const PROGRESS_STEPS = ['Analisando', 'Contrato aberto', 'Contrato fechado']
+// Tempo mínimo a mostrar "Contrato fechado" após fechar (0 = sem confirmação).
+// Se um novo contrato abrir, o estado muda de imediato para "aberto".
+const CLOSED_CONFIRM_MS = 700
 
 export function ControlsSection() {
   const navigate = useNavigate()
@@ -253,23 +258,22 @@ export function ControlsSection() {
     catalogBots, sessionBots, trades, openTrades, wsStatus, isLoadingCatalog,
     lastError, statusMessage, listCatalogBots, startCatalogBot, stopBot, resumeBot,
   } = useBots()
+  void lastError; void statusMessage; void listCatalogBots
 
   const [accLabels, setAccLabels] = useState({ realLabel: 'REAL', demoLabel: 'DEMO' })
   useEffect(() => { api.getAccountLabels().then(setAccLabels).catch(() => {}) }, [])
 
-  // ── Única alteração pedida: forçar maiúsculas no que aparece no ecrã,
-  // independentemente de como a label vier guardada (config admin ou
-  // fallback), sem mexer em mais nenhuma lógica ──
+  // Forçar maiúsculas no que aparece no ecrã, independentemente de como
+  // a label vier guardada (config admin ou fallback)
   const demoLabelDisplay = (isAdmin ? 'REAL' : accLabels.demoLabel).toUpperCase()
   const realLabelDisplay = (isAdmin ? 'DEMO' : accLabels.realLabel).toUpperCase()
 
   // Cores também invertidas para admin: Virtual fica verde,
-  // Ao Vivo fica azul (para utilizadores normais mantém-se
-  // Demo=azul / Real=verde, como sempre foi).
+  // Ao Vivo fica azul (utilizadores normais: Demo=azul / Real=verde).
   const demoColorDisplay = isAdmin ? 'var(--green)' : 'var(--blue-hi)'
   const realColorDisplay = isAdmin ? 'var(--blue-hi)' : 'var(--green)'
 
-  // ── Sheets em vidro (substituem os antigos dropdowns) ──
+  // ── Sheets (substituem os antigos dropdowns) ──
   const [showAccSheet, setShowAccSheet] = useState(false)
   const [showBotSheet, setShowBotSheet] = useState(false)
   const [switchingAcc, setSwitchingAcc] = useState(false)
@@ -306,34 +310,49 @@ export function ControlsSection() {
   const openCountForBot = sessionBotId ? Object.values(openTrades).filter(t => t.botId === sessionBotId).length : 0
   const closedCountForBot = sessionBotId ? trades.filter(t => t.botId === sessionBotId).length : 0
 
-  const [flashClosed, setFlashClosed] = useState(false)
-  const prevClosedCountRef = useRef<number>(0)
+  // ── Barra de progresso: reflete SEMPRE o estado real do bot ──────────
+  //   Analisando      → bot a correr, sem contrato aberto
+  //   Contrato aberto → existe pelo menos 1 contrato aberto (prioridade máxima)
+  //   Contrato fechado→ um contrato acabou de fechar; confirmação curta.
+  //                     Se abrir outro, passa logo a "aberto" (nunca prende).
+  // Nenhuma animação própria decide o estado — só os dados reais.
+  const [showClosed, setShowClosed] = useState(false)
+  const prevOpenRef = useRef(0)
+  const prevClosedRef = useRef<{ id: string | null; n: number }>({ id: null, n: 0 })
+  const closedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const prev = prevClosedCountRef.current
-    prevClosedCountRef.current = closedCountForBot
-    if (closedCountForBot > prev && prev !== 0) {
-      setFlashClosed(true)
-      const t = setTimeout(() => setFlashClosed(false), 1200)
-      return () => clearTimeout(t)
+    const prev = prevClosedRef.current
+    const sameBot = prev.id === sessionBotId
+    const closedIncreased = sameBot && closedCountForBot > prev.n
+    const openFinished = sameBot && prevOpenRef.current > 0 && openCountForBot === 0
+
+    prevClosedRef.current = { id: sessionBotId, n: closedCountForBot }
+    prevOpenRef.current = openCountForBot
+
+    if (!sameBot) {
+      // Mudou de bot (ou parou): limpa qualquer "fechado" pendente
+      if (closedTimerRef.current) clearTimeout(closedTimerRef.current)
+      setShowClosed(false)
+      return
     }
-  }, [closedCountForBot])
+    if (closedIncreased || openFinished) {
+      setShowClosed(true)
+      if (closedTimerRef.current) clearTimeout(closedTimerRef.current)
+      closedTimerRef.current = setTimeout(() => setShowClosed(false), CLOSED_CONFIRM_MS)
+    }
+  }, [openCountForBot, closedCountForBot, sessionBotId])
 
-  const progressStep = !isRunning ? -1 : flashClosed ? 2 : openCountForBot > 0 ? 1 : 0
-  const steps = ['Analisando', 'Contrato aberto', 'Contrato fechado']
-  const [animProgress, setAnimProgress] = useState(0)
+  useEffect(() => () => { if (closedTimerRef.current) clearTimeout(closedTimerRef.current) }, [])
 
-  useEffect(() => {
-    const target = isRunning && progressStep >= 0 ? (progressStep / (steps.length - 1)) * 100 : 0
-
-    const id = setInterval(() => setAnimProgress(p => {
-      const d = target - p
-      if (Math.abs(d) < 0.3) return target
-      const step = d * 0.45
-      return Math.abs(step) < 1.5 ? p + Math.sign(d) * 1.5 : p + step
-    }), 16)
-    return () => clearInterval(id)
-  }, [isRunning, progressStep])
+  // -1 = parado/pausado sem contratos | 0 = analisando | 1 = aberto | 2 = fechado
+  const progressStep = !liveBot ? -1
+    : openCountForBot > 0 ? 1
+    : showClosed ? 2
+    : isRunning ? 0
+    : -1
+  const steps = PROGRESS_STEPS
+  const fillPct = progressStep === 1 ? 50 : progressStep === 2 ? 100 : 0
 
   const { netPnL, totalWins, totalLosses } = useMemo(() => {
     const active = sessionBots.filter(b => b.stats.totalTrades > 0 || b.status === 'running')
@@ -400,111 +419,132 @@ export function ControlsSection() {
   const accLabel = !currentAccount ? 'Selecionar' : currentAccount.is_virtual ? demoLabelDisplay : realLabelDisplay
   const accColor = !currentAccount ? 'var(--text-faint)' : currentAccount.is_virtual ? demoColorDisplay : realColorDisplay
 
+  const toggleDisabled = !selectedBot || wsStatus !== 'connected' || isStarting
+  const toggleColor = toggleDisabled ? 'var(--border)' : isRunning ? 'var(--red-hi)' : isPaused ? 'var(--amber)' : 'var(--green)'
+
+  const ctrlBtn: React.CSSProperties = {
+    width: '100%', height: CTRL_H, padding: '0 clamp(6px, 2vw, 12px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, minWidth: 0,
+  }
+  const ctrlText: React.CSSProperties = {
+    fontSize: 'clamp(12px, 3.4vw, 15px)', fontWeight: 700,
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
+  }
+
   return (
     <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div className="controls-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'clamp(6px, 2vw, 10px)' }}>
+        <div className="controls-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'clamp(6px, 2vw, 10px)' }}>
           <div style={{ minWidth: 0 }}>
-            <p style={{ color: '#e5e5ea', fontSize: 'clamp(11px, 3vw, 15px)', marginBottom: 6, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Tipo de Conta</p>
-            <button onClick={() => setShowAccSheet(true)} className="btn-ghost" style={{
-              width: '100%', height: 'clamp(44px, 11vw, 56px)', padding: '0 clamp(6px, 2vw, 12px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, minWidth: 0,
-            }}>
-              <span style={{ fontSize: 'clamp(13px, 3.8vw, 19px)', fontWeight: 700, color: accColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{accLabel}</span>
-              <span style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                width: 'clamp(22px, 6vw, 30px)', height: 'clamp(22px, 6vw, 30px)', borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: 'var(--text-dim)',
-              }}>
-                <IconRefresh />
-              </span>
+            <p style={CTRL_LABEL}>Tipo de Conta</p>
+            <button onClick={() => setShowAccSheet(true)} className="btn-ghost" style={ctrlBtn}>
+              <span style={{ ...ctrlText, color: accColor }}>{accLabel}</span>
+              <span style={CTRL_ICON_BOX}><IoSwapHorizontal size={16} /></span>
             </button>
           </div>
 
           <div style={{ minWidth: 0 }}>
-            <p style={{ color: '#e5e5ea', fontSize: 'clamp(11px, 3vw, 15px)', marginBottom: 6, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Estratégia</p>
-            <button onClick={() => setShowBotSheet(true)} className="btn-ghost" style={{
-              width: '100%', height: 'clamp(44px, 11vw, 56px)', padding: '0 clamp(6px, 2vw, 12px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, minWidth: 0,
-            }}>
+            <p style={CTRL_LABEL}>Estratégia</p>
+            <button onClick={() => setShowBotSheet(true)} className="btn-ghost" style={ctrlBtn}>
               {selectedBot ? (
-                <span style={{ color: 'var(--white)', fontWeight: 700, fontSize: 'clamp(13px, 3.8vw, 19px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{selectedBot.name}</span>
+                <span style={{ ...ctrlText, color: 'var(--white)' }}>{selectedBot.name}</span>
               ) : (
-                <span style={{ color: 'var(--text-faint)', fontSize: 'clamp(11px, 3vw, 15px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isLoadingCatalog ? 'A carregar…' : 'Selecionar'}</span>
+                <span style={{ ...ctrlText, color: 'var(--text-faint)', fontSize: 'clamp(11px, 3vw, 15px)', fontWeight: 500 }}>{isLoadingCatalog ? 'A carregar…' : 'Selecionar'}</span>
               )}
-              <span style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                width: 'clamp(22px, 6vw, 30px)', height: 'clamp(22px, 6vw, 30px)', borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: 'var(--text-dim)',
-              }}>
-                <IconRefresh />
-              </span>
+              <span style={CTRL_ICON_BOX}><IoSwapHorizontal size={16} /></span>
             </button>
           </div>
 
           <div style={{ minWidth: 0 }}>
-            <p style={{ color: '#e5e5ea', fontSize: 'clamp(11px, 3vw, 15px)', marginBottom: 6, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Vídeo Aula</p>
-            <button onClick={goToAprenderAOperar} style={{
-              width: '100%', height: 'clamp(44px, 11vw, 56px)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(5px, 2vw, 10px)',
-              background: 'linear-gradient(180deg, #ef4a5c, #dc2f43)', color: '#fff',
+            <p style={CTRL_LABEL}>Vídeo Aula</p>
+            <button onClick={goToAprenderAOperar} aria-label="Vídeo Aula" style={{
+              width: '100%', height: CTRL_H, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(5px, 2vw, 10px)',
+              background: 'var(--red-hi)', color: '#fff',
             }}>
-              <IconPlayFilled />
-              <IconInfoCircle />
+              <IoPlay size={18} />
+              <IoInformationCircleOutline size={20} />
             </button>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 3vw, 16px)' }}>
-          <button onClick={() => selectedBot && setShowConfig(true)} disabled={!selectedBot} title="Configurar parâmetros"
+          <button onClick={() => selectedBot && setShowConfig(true)} disabled={!selectedBot} title="Configurar parâmetros" aria-label="Configurar parâmetros"
             className="btn-ghost" style={{
-              width: 'clamp(36px, 10vw, 48px)', height: 'clamp(36px, 10vw, 48px)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              width: 'clamp(38px, 9.5vw, 44px)', height: 'clamp(38px, 9.5vw, 44px)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0,
               opacity: !selectedBot ? 0.4 : 1, cursor: !selectedBot ? 'not-allowed' : 'pointer',
               borderColor: pendingConfig ? 'var(--blue)' : undefined,
+              color: pendingConfig ? 'var(--blue-hi)' : undefined,
             }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={pendingConfig ? 'var(--blue-hi)' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+            <IoSettingsOutline size={20} />
           </button>
 
-          <button onClick={handleToggle} disabled={!selectedBot || wsStatus !== 'connected' || isStarting}
+          <button onClick={handleToggle} disabled={toggleDisabled}
             title={isStarting ? 'A iniciar…' : undefined}
+            aria-label={isRunning ? 'Parar' : 'Iniciar'}
             style={{
-              width: 'clamp(44px, 12vw, 56px)', height: 'clamp(44px, 12vw, 56px)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              border: `2.5px solid ${!selectedBot || wsStatus !== 'connected' || isStarting ? 'var(--border)' : isRunning ? 'var(--red-hi)' : isPaused ? '#f5a623' : 'var(--green)'}`,
+              width: 'clamp(40px, 10.5vw, 46px)', height: 'clamp(40px, 10.5vw, 46px)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              border: `2.5px solid ${toggleColor}`,
               background: 'transparent',
-              opacity: !selectedBot || wsStatus !== 'connected' || isStarting ? 0.4 : 1,
-              cursor: !selectedBot || wsStatus !== 'connected' || isStarting ? 'not-allowed' : 'pointer',
+              color: toggleColor,
+              opacity: toggleDisabled ? 0.4 : 1,
+              cursor: toggleDisabled ? 'not-allowed' : 'pointer',
             }}>
             {isStarting ? (
               <span style={{ width: 18, height: 18, border: '2px solid var(--text-dim)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
             ) : isRunning ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--red-hi)" strokeWidth="3" strokeLinecap="round">
-                <line x1="8" y1="5" x2="8" y2="19" /><line x1="16" y1="5" x2="16" y2="19" />
-              </svg>
+              <IoPause size={22} />
             ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill={isPaused ? '#f5a623' : 'var(--green)'}><path d="M6 4l14 8-14 8V4z" /></svg>
+              <IoPlay size={22} />
             )}
           </button>
 
+          {/* Progresso — estado real; rótulos alinhados com as bolinhas */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, gap: 4 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', marginBottom: 10, gap: 4 }}>
               {steps.map((s, i) => (
-                <span key={s} style={{ fontSize: 'clamp(9px, 2.6vw, 14px)', fontWeight: 500, color: i <= progressStep ? 'var(--white)' : 'var(--text-faint)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s}</span>
+                <span key={s} style={{
+                  fontSize: 'clamp(9px, 2.6vw, 13px)',
+                  fontWeight: i === progressStep ? 700 : 500,
+                  textAlign: i === 0 ? 'left' : i === steps.length - 1 ? 'right' : 'center',
+                  color: i === progressStep ? 'var(--white)' : i < progressStep ? 'var(--text-dim)' : 'var(--text-faint)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  transition: 'color .2s',
+                }}>{s}</span>
               ))}
             </div>
-            <div style={{ position: 'relative', height: 4, background: 'var(--border)', borderRadius: 4 }}>
-              <div style={{ position: 'absolute', height: '100%', background: 'var(--blue)', borderRadius: 4, width: `${animProgress}%`, transition: 'width 0.5s' }} />
-              {steps.map((_, i) => (
-                <div key={i} style={{
-                  position: 'absolute', top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, borderRadius: '50%',
-                  border: `2px solid ${i <= progressStep ? 'var(--blue)' : 'var(--border-hi)'}`,
-                  background: i <= progressStep ? 'white' : 'var(--bg-card-hi)',
-                  left: `calc(${(i / (steps.length - 1)) * 100}% - 7px)`,
-                }} />
-              ))}
+            <div style={{ position: 'relative', height: 4, background: 'var(--border)', borderRadius: 2, margin: '0 7px' }}>
+              <div style={{
+                position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 2,
+                background: progressStep === 2 ? 'var(--green)' : 'var(--blue)',
+                width: `${fillPct}%`,
+                transition: 'width .3s ease, background .2s',
+              }} />
+              {steps.map((_, i) => {
+                const reached = i <= progressStep
+                const active = i === progressStep
+                return (
+                  <div key={i} className={active ? 'nx-step-active' : undefined} style={{
+                    position: 'absolute', top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, borderRadius: '50%',
+                    border: `2px solid ${reached ? (progressStep === 2 && i === 2 ? 'var(--green)' : 'var(--blue)') : 'var(--border-hi)'}`,
+                    background: reached ? 'white' : 'var(--bg-card-hi)',
+                    left: `calc(${(i / (steps.length - 1)) * 100}% - 7px)`,
+                    transition: 'background .2s, border-color .2s',
+                  }} />
+                )
+              })}
             </div>
+            <style>{`
+              @keyframes nxStepPulse {
+                0%   { box-shadow: 0 0 0 0 rgba(79,139,255,0.55); }
+                100% { box-shadow: 0 0 0 7px rgba(79,139,255,0); }
+              }
+              .nx-step-active { animation: nxStepPulse 1.2s ease-out infinite; }
+            `}</style>
           </div>
         </div>
       </div>
 
-      {/* ── Sheet em vidro: Selecionar Tipo de Conta (via Portal) ── */}
+      {/* ── Sheet: Selecionar Tipo de Conta (via Portal) ── */}
       {showAccSheet && (
         <Portal>
           <div className="glass-overlay" onClick={() => !switchingAcc && setShowAccSheet(false)}>
@@ -512,7 +552,9 @@ export function ControlsSection() {
               <div className="glass-sheet-header">
                 <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 15 }}>Selecionar Tipo de Conta</p>
                 {!switchingAcc && (
-                  <button onClick={() => setShowAccSheet(false)} style={{ color: 'var(--text-faint)', fontSize: 16, padding: 4 }}>✕</button>
+                  <button onClick={() => setShowAccSheet(false)} aria-label="Fechar" style={{ color: 'var(--text-faint)', padding: 6, display: 'inline-flex' }}>
+                    <IoClose size={20} />
+                  </button>
                 )}
               </div>
               {switchingAcc ? (
@@ -529,7 +571,9 @@ export function ControlsSection() {
                       <p style={{ fontSize: 14, fontWeight: 700, color: a.is_virtual ? demoColorDisplay : realColorDisplay }}>
                         {a.is_virtual ? `Conta ${demoLabelDisplay}` : `Conta ${realLabelDisplay}`}
                       </p>
-                      <p style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 2 }}>Saldo: ${Number(a.balance ?? 0).toFixed(2)}</p>
+                      <p style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 2 }}>
+                        Saldo: <span className="tabular">${Number(a.balance ?? 0).toFixed(2)}</span>
+                      </p>
                     </button>
                   ))}
                 </div>
@@ -539,7 +583,7 @@ export function ControlsSection() {
         </Portal>
       )}
 
-      {/* ── Sheet em vidro: Selecionar Estratégia (via Portal) ── */}
+      {/* ── Sheet: Selecionar Estratégia (via Portal) ── */}
       {showBotSheet && (
         <Portal>
           <div className="glass-overlay" onClick={() => !switchingBot && setShowBotSheet(false)}>
@@ -547,7 +591,9 @@ export function ControlsSection() {
               <div className="glass-sheet-header">
                 <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 15 }}>Selecionar Estratégia</p>
                 {!switchingBot && (
-                  <button onClick={() => setShowBotSheet(false)} style={{ color: 'var(--text-faint)', fontSize: 16, padding: 4 }}>✕</button>
+                  <button onClick={() => setShowBotSheet(false)} aria-label="Fechar" style={{ color: 'var(--text-faint)', padding: 6, display: 'inline-flex' }}>
+                    <IoClose size={20} />
+                  </button>
                 )}
               </div>
               {switchingBot ? (
