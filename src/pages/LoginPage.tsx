@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
+import { startGuestSession, clearGuestSession } from '../lib/guest'
 import logo from '../logo.png'
 import { inputStyle, labelStyle, errorTextStyle } from '../lib/glass'
 
@@ -129,6 +130,10 @@ export default function LoginPage() {
   const [activeLang, setActiveLang] = useState('ao')
   const [showTerms, setShowTerms] = useState(false)
 
+  // true quando o modal de termos foi aberto pelo botão "Entrar sem conta"
+  // (não há sessão local para terminar se o utilizador recusar).
+  const [guestEntry, setGuestEntry] = useState(false)
+
   // Distingue "já estava autenticado ao abrir a página" (ex: refresh)
   // de "acabou de fazer login agora mesmo, aqui, neste formulário".
   // Sem isto, o useEffect abaixo navega sozinho para /connect-deriv
@@ -160,19 +165,20 @@ export default function LoginPage() {
       // não disparar a navegação automática enquanto decidimos aqui
       // se é preciso mostrar o modal de termos primeiro.
       justLoggedInRef.current = true
+      clearGuestSession() // login com conta substitui a entrada sem conta
       loginLocal(res.token, res.user)
 
       // Depois de autenticar, mostra o modal de Termos e Condições no
       // centro do ecrã antes de avançar — só passa para a próxima página
       // quando o utilizador confirmar que leu e aceita.
-      let alreadyAccepted = false
-      try { alreadyAccepted = localStorage.getItem(TERMS_ACCEPTED_KEY) === '1' } catch { /* ignora */ }
+      const alreadyAccepted = termsAlreadyAccepted()
 
       try { hide?.() } catch { /* opcional */ }
 
       if (alreadyAccepted) {
         navigate('/connect-deriv')
       } else {
+        setGuestEntry(false)
         setShowTerms(true)
       }
     } catch (err: any) {
@@ -191,6 +197,19 @@ export default function LoginPage() {
     }
   }
 
+  // Entrar sem criar conta: segue direto para a ligação à Deriv. Os termos
+  // continuam obrigatórios (aparecem se ainda não foram aceites).
+  const handleGuestEntry = () => {
+    setError(null)
+    if (termsAlreadyAccepted()) {
+      startGuestSession()
+      navigate('/connect-deriv')
+      return
+    }
+    setGuestEntry(true)
+    setShowTerms(true)
+  }
+
   const handleForgotPassword = () => {
     alert('Recuperação de senha em breve. Por agora, contacta o suporte via WhatsApp para reativar o acesso.')
   }
@@ -198,13 +217,24 @@ export default function LoginPage() {
   const handleAcceptTerms = () => {
     try { localStorage.setItem(TERMS_ACCEPTED_KEY, '1') } catch { /* ignora */ }
     setShowTerms(false)
+    if (guestEntry) {
+      setGuestEntry(false)
+      startGuestSession()
+    }
     navigate('/connect-deriv')
   }
 
   const handleDeclineTerms = () => {
+    setShowTerms(false)
+
+    // Entrada sem conta: não há sessão para terminar, só volta ao formulário.
+    if (guestEntry) {
+      setGuestEntry(false)
+      return
+    }
+
     // Sem aceitar os termos não há acesso — termina a sessão local e
     // volta ao ecrã de login.
-    setShowTerms(false)
     justLoggedInRef.current = false
     try {
       if (typeof logout === 'function') {
@@ -297,6 +327,17 @@ export default function LoginPage() {
         >
           Criar conta
         </Link>
+
+        {/* Entrar sem criar conta — segue direto para ligar a Deriv */}
+        <button
+          type="button"
+          onClick={handleGuestEntry}
+          disabled={isSubmitting}
+          className="btn-ghost"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 44, marginTop: 12, fontSize: 13.5, fontWeight: 600 }}
+        >
+          Entrar sem conta
+        </button>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 {BRAND_NAME}</p>
