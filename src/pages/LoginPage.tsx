@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
-import { startGuestSession, clearGuestSession } from '../lib/guest'
 import logo from '../logo.png'
 import { inputStyle, labelStyle, errorTextStyle } from '../lib/glass'
 
@@ -121,7 +120,7 @@ function termsAlreadyAccepted(): boolean {
 export default function LoginPage() {
   const navigate = useNavigate()
   const { show, hide } = useLoader() as any // hide pode não existir consoante a versão do contexto
-  const { isLocalAuthenticated, isLocalLoading, loginLocal, logout } = useAuth() as any
+  const { isLocalAuthenticated, isLocalLoading, loginLocal, logoutLocal, logout } = useAuth() as any
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -130,84 +129,50 @@ export default function LoginPage() {
   const [activeLang, setActiveLang] = useState('ao')
   const [showTerms, setShowTerms] = useState(false)
 
-  // true quando o modal de termos foi aberto pelo botão "Entrar sem conta"
-  // (não há sessão local para terminar se o utilizador recusar).
-  const [guestEntry, setGuestEntry] = useState(false)
-
-  // Distingue "já estava autenticado ao abrir a página" (ex: refresh)
-  // de "acabou de fazer login agora mesmo, aqui, neste formulário".
-  // Sem isto, o useEffect abaixo navega sozinho para /connect-deriv
-  // assim que loginLocal() atualiza o contexto — antes do modal de
-  // termos ter hipótese de aparecer.
-  const justLoggedInRef = useRef(false)
-
+  // Fonte única de verdade para "o que acontece quando há sessão local":
+  //   - termos já aceites  -> segue para /connect-deriv
+  //   - termos por aceitar -> mostra o modal
   useEffect(() => {
-    if (!isLocalLoading && isLocalAuthenticated && !justLoggedInRef.current) {
-      navigate('/connect-deriv')
+    if (isLocalLoading || !isLocalAuthenticated) return
+    if (termsAlreadyAccepted()) {
+      navigate('/connect-deriv', { replace: true })
+    } else {
+      setShowTerms(true)
     }
-  }, [isLocalLoading, isLocalAuthenticated])
+  }, [isLocalLoading, isLocalAuthenticated, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim()
+    if (!cleanEmail || !password) {
       setError('Preenche o email e a senha.')
+      return
+    }
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      setError('Email inválido.')
       return
     }
 
     setIsSubmitting(true)
     show('A entrar...')
     try {
-      const res = await api.loginLocal(email.trim(), password)
-
-      // Marca ANTES de atualizar o contexto de auth, para o useEffect
-      // não disparar a navegação automática enquanto decidimos aqui
-      // se é preciso mostrar o modal de termos primeiro.
-      justLoggedInRef.current = true
-      clearGuestSession() // login com conta substitui a entrada sem conta
-      loginLocal(res.token, res.user)
-
-      // Depois de autenticar, mostra o modal de Termos e Condições no
-      // centro do ecrã antes de avançar — só passa para a próxima página
-      // quando o utilizador confirmar que leu e aceita.
-      const alreadyAccepted = termsAlreadyAccepted()
-
-      try { hide?.() } catch { /* opcional */ }
-
-      if (alreadyAccepted) {
-        navigate('/connect-deriv')
-      } else {
-        setGuestEntry(false)
-        setShowTerms(true)
-      }
+      // O backend entra se o email existe e cria a conta se for novo.
+      const res = await api.loginLocal(cleanEmail, password)
+      loginLocal(res.token, res.user) // o useEffect acima decide o passo seguinte
     } catch (err: any) {
-      // Credenciais erradas → 401 do backend. Mostramos a mensagem certa
-      // em vez de deixar o loader a girar para sempre.
+      // Email já existente com senha errada → 401 do backend.
       const msg = err?.message || 'Não foi possível entrar.'
       if (msg.includes('401') || msg.toLowerCase().includes('inválid') || msg.toLowerCase().includes('incorret')) {
         setError('Email ou senha incorretos.')
       } else {
         setError(msg)
       }
-      justLoggedInRef.current = false
-      try { hide?.() } catch { /* opcional, LoaderContext pode não ter hide() */ }
     } finally {
       setIsSubmitting(false)
+      try { hide?.() } catch { /* LoaderContext pode não ter hide() */ }
     }
-  }
-
-  // Entrar sem criar conta: segue direto para a ligação à Deriv. Os termos
-  // continuam obrigatórios (aparecem se ainda não foram aceites).
-  const handleGuestEntry = () => {
-    setError(null)
-    if (termsAlreadyAccepted()) {
-      startGuestSession()
-      navigate('/connect-deriv')
-      return
-    }
-    setGuestEntry(true)
-    setShowTerms(true)
   }
 
   const handleForgotPassword = () => {
@@ -217,33 +182,18 @@ export default function LoginPage() {
   const handleAcceptTerms = () => {
     try { localStorage.setItem(TERMS_ACCEPTED_KEY, '1') } catch { /* ignora */ }
     setShowTerms(false)
-    if (guestEntry) {
-      setGuestEntry(false)
-      startGuestSession()
-    }
-    navigate('/connect-deriv')
+    navigate('/connect-deriv', { replace: true })
   }
 
   const handleDeclineTerms = () => {
+    // Sem aceitar os termos não há acesso: termina só a sessão local
+    // (não mexe na sessão Deriv) e fica no ecrã de entrada.
     setShowTerms(false)
-
-    // Entrada sem conta: não há sessão para terminar, só volta ao formulário.
-    if (guestEntry) {
-      setGuestEntry(false)
-      return
-    }
-
-    // Sem aceitar os termos não há acesso — termina a sessão local e
-    // volta ao ecrã de login.
-    justLoggedInRef.current = false
     try {
-      if (typeof logout === 'function') {
-        logout()
-      } else {
-        localStorage.removeItem('token')
-      }
+      if (typeof logoutLocal === 'function') logoutLocal()
+      else if (typeof logout === 'function') logout()
+      else localStorage.removeItem('token')
     } catch { /* ignora */ }
-    navigate('/login', { replace: true })
   }
 
   if (isLocalLoading) {
@@ -320,24 +270,9 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <Link
-          to="/register"
-          className="btn-ghost"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 44, marginTop: 20, fontSize: 13.5, fontWeight: 600 }}
-        >
-          Criar conta
-        </Link>
-
-        {/* Entrar sem criar conta — segue direto para ligar a Deriv */}
-        <button
-          type="button"
-          onClick={handleGuestEntry}
-          disabled={isSubmitting}
-          className="btn-ghost"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 44, marginTop: 12, fontSize: 13.5, fontWeight: 600 }}
-        >
-          Entrar sem conta
-        </button>
+        <p style={{ color: 'var(--text-faint)', fontSize: 12, textAlign: 'center', marginTop: 20, lineHeight: 1.6 }}>
+          Primeira vez aqui? Basta escrever o teu email e uma senha — a conta é criada automaticamente.
+        </p>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 {BRAND_NAME}</p>
