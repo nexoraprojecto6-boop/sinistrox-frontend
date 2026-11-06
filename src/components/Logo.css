@@ -1,0 +1,30 @@
+.sx-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.08em;
+  line-height: 1;
+  color: inherit;
+  user-select: none;
+}
+
+.sx-logo__word {
+  font-family: "Archivo Black", "Anton", Impact, "Arial Black", sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sx-logo__x {
+  flex: none;
+  margin-top: -0.04em;
+  filter: drop-shadow(0 0 0.35em rgba(255, 31, 31, 0.35));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sx-logo__x {
+    transition: transform 0.25s ease;
+  }
+  .sx-logo:hover .sx-logo__x {
+    transform: rotate(8deg) scale(1.06);
+  }
+}

@@ -4,13 +4,10 @@ import { IoChevronBack, IoPlayCircleOutline } from 'react-icons/io5'
 // ============================================================
 // SINISTRO X — Vídeo-aulas das estratégias
 //
-// Edita esta lista para adicionar/remover aulas. O "videoId" é a
-// parte do link do YouTube depois de "v=" — por exemplo, no link
-// https://www.youtube.com/watch?v=dQw4w9WgXcQ
+// A lista está vazia (vídeos removidos). Para voltar a adicionar aulas,
+// põe objetos em LESSONS. O "videoId" é a parte do link do YouTube
+// depois de "v=" — em https://www.youtube.com/watch?v=dQw4w9WgXcQ
 // o videoId é: dQw4w9WgXcQ
-//
-// Os vídeos ficam embutidos via <iframe> do YouTube (embed oficial),
-// por isso o utilizador assiste sem sair da app.
 // ============================================================
 
 interface Lesson {
@@ -20,32 +17,7 @@ interface Lesson {
   videoId: string
 }
 
-const LESSONS: Lesson[] = [
-  {
-    id: 'aula-1',
-    title: 'Introdução à NEXORA FOREX by DERIV',
-    description: 'Conhece a plataforma e aprende a abrir as tuas primeiras operações na Deriv.',
-    videoId: 'PVITi2GBLII',
-  },
-  {
-    id: 'aula-2',
-    title: 'Estratégia ALFHA',
-    description: 'Como operar com a estratégia ALFHA e os primeiros passos para começares a usá-la.',
-    videoId: '5jIRVtpRpSg',
-  },
-  {
-    id: 'aula-3',
-    title: 'Estratégia SCALPER',
-    description: 'Como operar com a estratégia SCALPER e os primeiros passos na Deriv.',
-    videoId: 'erLFyZ5xVjM',
-  },
-  {
-    id: 'aula-4',
-    title: 'Recomendações e Primeiros Passos',
-    description: 'Recomendações importantes e como seguir os primeiros passos essenciais na Deriv.',
-    videoId: 'Ylp5UlrJQjk',
-  },
-]
+const LESSONS: Lesson[] = []
 
 export default function VideoLessonsPage() {
   const navigate = useNavigate()

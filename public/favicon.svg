@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <mask id="cut">
+      <rect width="100" height="100" fill="white"/>
+      <polygon points="92,8 66,8 8,92 34,92" fill="black" stroke="black" stroke-width="8" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect width="100" height="100" rx="20" fill="#0B0B0F"/>
+  <g transform="translate(14 14) scale(0.72)">
+    <polygon points="8,8 34,8 92,92 66,92" fill="#B80000" mask="url(#cut)"/>
+    <polygon points="92,8 66,8 8,92 34,92" fill="#FF1F1F"/>
+  </g>
+</svg>
