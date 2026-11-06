@@ -2,13 +2,14 @@
 // NEXORA FOREX — Trading Context
 //
 // ÚNICA fonte de dados de mercado (balance, ticks, gráfico).
-// Nunca abre WebSocket própria para a Deriv — todos os dados
-// vêm do backend via BotsProvider/useNexoraWs. Isto evita o bug
-// de ligações concorrentes à Deriv (limite de 5/conta) e dados
-// de tick dessincronizados entre componentes.
+// Os ticks vêm do backend pela ligação da sessão:
+//   • ticks_snapshot → histórico inicial (substitui tudo)
+//   • tick           → cada tick novo (aplicado de imediato)
+// O último dígito usa o pip_size real do tick.
 // ============================================================
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react'
+import { decimalsFromPip } from '../lib/money'
 
 export interface BarEntry {
   digit: number
@@ -46,11 +47,15 @@ interface TradingContextValue {
   chartData: ChartData | null
   lastDigits: number[]
   tickCount: number
+  snapshotVersion: number
   isConnected: boolean
   loading: boolean
 
   selectedTicks: number
   setSelectedTicks: (t: number) => void
+
+  /** Histórico de dígitos (do mais antigo ao mais recente). Não alterar. */
+  getDigits: () => number[]
 
   trades: Trade[]
   clearTrades: () => void
@@ -58,7 +63,8 @@ interface TradingContextValue {
   botStatus: BotStatusUi
 
   _setBalance: (b: number, c: string) => void
-  _setTick: (quote: number) => void
+  _setTick: (quote: number, pipSize?: number, symbol?: string) => void
+  _setTicksSnapshot: (symbol: string, prices: number[], pipSize?: number) => void
   _setBotStatus: (s: BotStatusUi) => void
   _addTrade: (t: Trade) => void
   _setConnected: (v: boolean) => void
@@ -68,10 +74,12 @@ const TradingContext = createContext<TradingContextValue | undefined>(undefined)
 
 const MAX_DIGIT_HISTORY = 1000
 const MAX_LAST_STRIP = 24
-// Rede de segurança: se nenhum tick chegar neste intervalo, o
-// loader do dashboard deixa de ficar preso para sempre (o status
-// "offline" do indicador WS continua a refletir a realidade).
 const LOADING_SAFETY_TIMEOUT_MS = 8000
+
+function digitOf(quote: number, pipSize?: number): number {
+  const s = quote.toFixed(decimalsFromPip(pipSize, 2))
+  return parseInt(s[s.length - 1], 10)
+}
 
 function computeBarData(digits: number[], windowSize: number): BarEntry[] {
   const slice = digits.slice(-windowSize)
@@ -93,6 +101,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
   const [lastDigit, setLastDigit] = useState(0)
   const [lastDigits, setLastDigits] = useState<number[]>([])
   const [tickCount, setTickCount] = useState(0)
+  const [snapshotVersion, setSnapshotVersion] = useState(0)
   const [chartData, setChartData] = useState<ChartData | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -102,6 +111,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
 
   const digitHistory = useRef<number[]>([])
   const selectedTicksRef = useRef(selectedTicks)
+  const symbolRef = useRef<string | null>(null)
   useEffect(() => { selectedTicksRef.current = selectedTicks }, [selectedTicks])
 
   useEffect(() => {
@@ -109,18 +119,43 @@ export function TradingProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t)
   }, [])
 
+  const getDigits = useCallback(() => digitHistory.current, [])
+
   const _setBalance = useCallback((b: number, c: string) => {
     setBalance(b)
     setCurrency(c)
   }, [])
 
-  const _setTick = useCallback((quote: number) => {
-    const priceStr = quote.toFixed(2)
-    const digit = parseInt(priceStr[priceStr.length - 1], 10)
-    digitHistory.current.push(digit)
-    if (digitHistory.current.length > MAX_DIGIT_HISTORY) {
-      digitHistory.current = digitHistory.current.slice(-MAX_DIGIT_HISTORY)
-    }
+  // Histórico inicial (ou novo histórico após reconexão / troca de mercado)
+  const _setTicksSnapshot = useCallback((symbol: string, prices: number[], pipSize?: number) => {
+    symbolRef.current = symbol
+    const digits = prices
+      .map(p => digitOf(p, pipSize))
+      .filter(d => !Number.isNaN(d))
+      .slice(-MAX_DIGIT_HISTORY)
+    digitHistory.current = digits
+    if (digits.length === 0) return
+
+    const last = digits[digits.length - 1]
+    setLastDigit(last)
+    setLastDigits(digits.slice(-MAX_LAST_STRIP))
+    setChartData({ barData: computeBarData(digits, selectedTicksRef.current), lastDigit: last })
+    setLoading(false)
+    setTickCount(c => c + 1)
+    setSnapshotVersion(v => v + 1)
+  }, [])
+
+  // Tick novo: aplicado de imediato, sem filas nem microtasks
+  const _setTick = useCallback((quote: number, pipSize?: number, symbol?: string) => {
+    if (symbol && symbolRef.current && symbol !== symbolRef.current) return
+
+    const digit = digitOf(quote, pipSize)
+    if (Number.isNaN(digit)) return
+
+    const h = digitHistory.current
+    h.push(digit)
+    if (h.length > MAX_DIGIT_HISTORY) h.splice(0, h.length - MAX_DIGIT_HISTORY)
+
     setLastDigit(digit)
     setLoading(false)
     setTickCount(c => c + 1)
@@ -128,17 +163,14 @@ export function TradingProvider({ children }: { children: ReactNode }) {
       const next = [...prev, digit]
       return next.length > MAX_LAST_STRIP ? next.slice(-MAX_LAST_STRIP) : next
     })
-    const w = selectedTicksRef.current
-    queueMicrotask(() => {
-      setChartData({ barData: computeBarData(digitHistory.current, w), lastDigit: digit })
-    })
+    setChartData({ barData: computeBarData(h, selectedTicksRef.current), lastDigit: digit })
   }, [])
 
   const _setBotStatus = useCallback((s: BotStatusUi) => setBotStatus(s), [])
 
   const _addTrade = useCallback((t: Trade) => {
     setTrades(prev => [t, ...prev].slice(0, 500))
-    if (t.resultado >= 0) {
+    if (t.resultado > 0) {
       setWins(w => w + 1)
       setProfit(p => p + t.resultado)
     } else {
@@ -159,9 +191,9 @@ export function TradingProvider({ children }: { children: ReactNode }) {
   return (
     <TradingContext.Provider value={{
       balance, profit, wins, losses, currency, lastDigit, chartData,
-      lastDigits, tickCount, isConnected, loading, selectedTicks, setSelectedTicks,
-      trades, clearTrades, botStatus,
-      _setBalance, _setTick, _setBotStatus, _addTrade, _setConnected,
+      lastDigits, tickCount, snapshotVersion, isConnected, loading, selectedTicks, setSelectedTicks,
+      getDigits, trades, clearTrades, botStatus,
+      _setBalance, _setTick, _setTicksSnapshot, _setBotStatus, _addTrade, _setConnected,
     }}>
       {children}
     </TradingContext.Provider>

@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLoader } from '../context/LoaderContext'
 import { api, DerivTokenExpiredError } from '../lib/api'
-import type { AdminStats, MarkupStatisticsData } from '../lib/api'
+import type { AdminStats, AdminUserRow, MarkupStatisticsData } from '../lib/api'
 import type { AdminNotification } from '../lib/types'
 
+type Tab = 'todos' | 'nao_verificados' | 'bloqueados' | 'online' | 'novos_hoje' | 'inativos'
 type CommissionFilterMode = 'mes' | 'intervalo'
 
 const MONTH_NAMES = [
@@ -71,6 +72,14 @@ function IconShield() {
     </svg>
   )
 }
+function IconUsers2() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
 function IconBellSmall() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -109,8 +118,12 @@ export default function AdminPage() {
   const { show, complete, hide } = useLoader()
 
   const [stats, setStats] = useState<AdminStats | null>(null)
+  const [users, setUsers] = useState<AdminUserRow[]>([])
+  const [tab, setTab] = useState<Tab>('todos')
   const [isLoading, setIsLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null)
 
   // ── Relatório de comissão (Deriv markup-statistics) ─────────
   const [markup, setMarkup] = useState<MarkupStatisticsData | null>(null)
@@ -158,8 +171,12 @@ export default function AdminPage() {
     setIsLoading(true)
     setErrorMsg(null)
     try {
-      const statsRes = await api.getAdminStats()
+      const [statsRes, usersRes] = await Promise.all([
+        api.getAdminStats(),
+        api.getAdminUsers(),
+      ])
       setStats(statsRes.stats)
+      setUsers(usersRes.users)
       complete('Pronto!')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Falha ao carregar dados')
@@ -233,10 +250,68 @@ export default function AdminPage() {
     }
   }
 
+  const handleToggleStatus = async (user: AdminUserRow) => {
+    const nextStatus = user.status === 'active' ? 'blocked' : 'active'
+    setBusyId(user.id)
+    try {
+      const { user: updated } = await api.setUserStatus(user.id, nextStatus)
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
+      if (selectedUser?.id === updated.id) setSelectedUser(updated)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Falha ao atualizar utilizador')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const ONLINE_THRESHOLD_MS = 5 * 60 * 1000
+  const now = Date.now()
+  const startOfDay = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d.getTime()
+  }, [])
+
+  const filteredUsers = useMemo(() => {
+    switch (tab) {
+      case 'nao_verificados':
+        return users.filter((u) => !u.emailVerified)
+      case 'bloqueados':
+        return users.filter((u) => u.status === 'blocked')
+      case 'online':
+        return users.filter((u) => u.lastActiveAt !== null && now - u.lastActiveAt <= ONLINE_THRESHOLD_MS)
+      case 'novos_hoje':
+        return users.filter((u) => u.createdAt >= startOfDay)
+      case 'inativos':
+        return users.filter((u) => {
+          if (u.status === 'blocked') return false
+          const ref = u.lastLoginAt ?? u.createdAt
+          return now - ref > 30 * 24 * 60 * 60 * 1000
+        })
+      default:
+        return users
+    }
+    // Ordenados por mais recentes primeiro (registo ou atividade)
+  }, [users, tab, now, startOfDay])
+
+  const sortedUsers = useMemo(
+    () => [...filteredUsers].sort((a, b) => (b.lastActiveAt ?? b.createdAt) - (a.lastActiveAt ?? a.createdAt)),
+    [filteredUsers],
+  )
+
   const goBack = () => navigate('/menu')
 
   if (!localUser || (isLoading && !stats)) return null
   if (!isAdmin) return null
+
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'todos', label: 'Todos' },
+    { key: 'online', label: 'Online agora' },
+    { key: 'novos_hoje', label: 'Novos hoje' },
+    { key: 'nao_verificados', label: 'Não verificados' },
+    { key: 'inativos', label: 'Inativos' },
+    { key: 'bloqueados', label: 'Bloqueados' },
+  ]
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--bg)' }}>
@@ -442,19 +517,6 @@ export default function AdminPage() {
                   Período: {formatPeriod(markup.date_from, markup.date_to)}
                 </p>
 
-                {/* CORREÇÃO: o backend já filtra o breakdown da Deriv
-                    para devolver só os totais desta app (Lucro IA) —
-                    não existe um campo `breakdown` na resposta. Quando
-                    a app não teve nenhum movimento no período,
-                    `app_found` vem a false e os totais vêm a 0; nesse
-                    caso mostra-se um aviso em vez de números vazios
-                    sem contexto. */}
-                {markup.app_found === false && (
-                  <p style={{ color: 'var(--text-faint)', fontSize: 12.5, marginBottom: 14 }}>
-                    Sem registo de comissão para esta app no período selecionado.
-                  </p>
-                )}
-
                 {/* Divisão da comissão — o destaque principal desta secção */}
                 <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
                   <div className="card" style={{ flex: '1 1 200px', padding: '16px 18px', background: 'var(--bg-card-hi)' }}>
@@ -484,12 +546,39 @@ export default function AdminPage() {
                 </div>
 
                 {/* Métricas de apoio */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: markup.breakdown.length > 0 ? 16 : 0 }}>
                   <StatCard label="Volume negociado" value={formatUsd(markup.total_volume_usd)} />
                   <StatCard label="Payout total" value={formatUsd(markup.total_payout_usd)} />
                   <StatCard label="Contratos" value={markup.total_contract_count} />
                   <StatCard label="Clientes" value={markup.total_client_count} />
                 </div>
+
+                {markup.breakdown.length > 0 && (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                      <thead>
+                        <tr style={{ color: 'var(--text-dim)', borderBottom: '1px solid var(--border)' }}>
+                          <th style={{ textAlign: 'left', padding: '8px 6px', fontWeight: 600 }}>App ID</th>
+                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Comissão</th>
+                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Volume</th>
+                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Contratos</th>
+                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Clientes</th>
+                        </tr>
+                      </thead>
+                      <tbody className="tabular">
+                        {markup.breakdown.map((b) => (
+                          <tr key={b.app_id} style={{ borderBottom: '1px solid rgba(31,44,74,0.4)' }}>
+                            <td style={{ padding: '8px 6px', color: 'var(--text-dim)' }}>{b.app_id}</td>
+                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>{formatUsd(b.app_markup_usd)}</td>
+                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{formatUsd(b.volume_usd)}</td>
+                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{b.contract_count}</td>
+                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{b.client_count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </>
             )}
 
@@ -509,7 +598,138 @@ export default function AdminPage() {
             </p>
           </div>
         </div>
+
+        {/* Tabs de utilizadores */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span style={{ display: 'flex', color: 'var(--text-faint)' }}><IconUsers2 /></span>
+          <p style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 600 }}>Utilizadores</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 }}>
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              style={{
+                padding: '8px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
+                border: `1px solid ${tab === t.key ? 'var(--blue)' : 'var(--border)'}`,
+                background: tab === t.key ? 'rgba(24,87,255,0.12)' : 'transparent',
+                color: tab === t.key ? 'var(--blue-hi)' : 'var(--text-dim)',
+                cursor: 'pointer',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Lista de utilizadores */}
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {sortedUsers.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-faint)', fontSize: 13 }}>Nenhum utilizador nesta categoria.</p>
+            </div>
+          ) : (
+            sortedUsers.map((u, idx) => {
+              const isOnline = u.lastActiveAt !== null && now - u.lastActiveAt <= ONLINE_THRESHOLD_MS
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => setSelectedUser(u)}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '14px 16px', background: 'transparent', border: 'none',
+                    borderBottom: idx < sortedUsers.length - 1 ? '1px solid var(--border)' : 'none',
+                    display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                  }}
+                >
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: isOnline ? 'var(--green)' : 'var(--border-hi)',
+                  }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <p style={{ color: 'var(--white)', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {u.fullName || '(sem nome)'}
+                      </p>
+                      {u.role === 'admin' && (
+                        <span style={{ padding: '1px 7px', background: 'rgba(245,166,35,0.15)', color: '#f5a623', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>ADMIN</span>
+                      )}
+                      {u.status === 'blocked' && (
+                        <span style={{ padding: '1px 7px', background: 'rgba(233,32,63,0.15)', color: 'var(--red-hi)', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>BLOQUEADO</span>
+                      )}
+                      {!u.emailVerified && (
+                        <span style={{ padding: '1px 7px', background: 'rgba(245,166,35,0.1)', color: '#f5a623', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>NÃO VERIFICADO</span>
+                      )}
+                    </div>
+                    <p style={{ color: 'var(--text-faint)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {u.email} · {u.whatsapp}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>Registado</p>
+                    <p style={{ color: 'var(--text-dim)', fontSize: 11.5 }}>{formatDate(u.createdAt)}</p>
+                  </div>
+                </button>
+              )
+            })
+          )}
+        </div>
       </div>
+
+      {/* Modal de detalhes / ações do utilizador */}
+      {selectedUser && (
+        <>
+          <div onClick={() => setSelectedUser(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 640 }} />
+          <div style={{ position: 'fixed', inset: '16px 16px auto', top: 16, zIndex: 650, maxWidth: 460, margin: '0 auto' }}>
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+                <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 15 }}>Detalhes do utilizador</p>
+                <button onClick={() => setSelectedUser(null)} className="btn-ghost" style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              </div>
+
+              <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  ['Nome', selectedUser.fullName || '—'],
+                  ['Email', selectedUser.email],
+                  ['WhatsApp', selectedUser.whatsapp || '—'],
+                  ['Role', selectedUser.role === 'admin' ? 'Administrador' : 'Utilizador'],
+                  ['Estado', selectedUser.status === 'active' ? 'Ativo' : 'Bloqueado'],
+                  ['Email verificado', selectedUser.emailVerified ? 'Sim' : 'Não'],
+                  ['Registado em', formatDate(selectedUser.createdAt)],
+                  ['Último login', formatDate(selectedUser.lastLoginAt)],
+                  ['Última atividade', formatDate(selectedUser.lastActiveAt)],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <span style={{ color: 'var(--text-faint)', fontSize: 12.5 }}>{label}</span>
+                    <span style={{ color: 'var(--white)', fontSize: 12.5, fontWeight: 500, textAlign: 'right' }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+                <button onClick={() => setSelectedUser(null)} className="btn-ghost" style={{ padding: '10px 20px', fontSize: 14, fontWeight: 500 }}>
+                  Fechar
+                </button>
+                <button
+                  onClick={() => handleToggleStatus(selectedUser)}
+                  disabled={busyId === selectedUser.id || selectedUser.role === 'admin'}
+                  title={selectedUser.role === 'admin' ? 'Não é possível bloquear um administrador' : undefined}
+                  style={{
+                    flex: 1, padding: '10px 0', fontSize: 14, fontWeight: 600, borderRadius: 10, border: 'none',
+                    cursor: selectedUser.role === 'admin' ? 'not-allowed' : 'pointer',
+                    opacity: selectedUser.role === 'admin' ? 0.4 : 1,
+                    background: selectedUser.status === 'active' ? 'rgba(233,32,63,0.15)' : 'rgba(24,201,122,0.15)',
+                    color: selectedUser.status === 'active' ? 'var(--red-hi)' : 'var(--green)',
+                  }}
+                >
+                  {busyId === selectedUser.id
+                    ? 'A atualizar...'
+                    : selectedUser.status === 'active' ? 'Bloquear utilizador' : 'Reativar utilizador'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

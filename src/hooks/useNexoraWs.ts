@@ -1,20 +1,91 @@
 // ============================================================
 // NEXORA FOREX — WebSocket Hook
 //
-// CORRECÇÃO: o backend usa sendToClient(ws, type, payload) que
-// faz JSON.stringify({ type, ...payload }) — ou seja, os campos
-// chegam na RAIZ da mensagem, não aninhados em msg.payload.
-// Exemplo real recebido: { type:'balance', balance:10092.59, currency:'USD' }
-// O hook agora lê da raiz (msg) quando payload está vazio,
-// garantindo que balance e tick são sempre processados.
+// ALTERAÇÃO (Operar Manual): adicionado o envio `manual_buy` e a
+// escuta dos eventos `manual_buy_result` (confirmação de compra)
+// e `manual_trade_closed` (resultado final do contrato manual).
+// Segue exatamente o mesmo padrão dos eventos `bot:*` já existentes.
+//
+// ALTERAÇÕES (compatibilidade com o backend v2):
+//   • AUTH_TEMPORARY (Deriv/rede em baixo) já NÃO termina a sessão —
+//     só AUTH_FAILED (token inválido) o faz. Antes, qualquer falha
+//     temporária de login na Deriv expulsava o utilizador.
+//   • O contador de reconexão só volta a zero quando a ligação fica
+//     estável (ou autentica). Antes zerava a cada abertura: se o servidor
+//     fechava logo a seguir, reconectava de 1 em 1 segundo para sempre.
+//   • Sockets antigos já não interferem com o novo (guarda "stale"):
+//     o onclose de um socket substituído agendava reconexões duplicadas.
+//   • connect() não abre um 2.º socket enquanto o 1.º ainda está a ligar.
+//   • Mensagens novas: bot_symbol_fallback, manual_trade_error,
+//     deriv_disconnected/deriv_reconnected.
+//   • tick traz pip_size e symbol (dígito final correto por mercado).
+//   • Ações do utilizador sem ligação avisam em vez de falhar em silêncio.
+//   • clientRef nas compras manuais (liga cada resposta ao pedido certo).
+//
+// ALTERAÇÕES (anti-429 da Deriv):
+//   • Backoff com jitter (±20 %) e base de 1,5 s.
+//   • Espaçamento mínimo de 4 s entre tentativas de ligação: o
+//     "fast reconnect" (focus / visibilitychange / online) já não fura o
+//     backoff — antes, cada clique na janela abria uma ligação nova e
+//     cada ligação nova custa GET contas + POST otp + WS na Deriv.
+//   • Erro AUTH_TEMPORARY / RATE_LIMITED do servidor força backoff
+//     mais longo (≥ 12 s) e desliga o fast reconnect até autenticar.
+//   • Troca de conta (token/accountId) com debounce de 300 ms: trocar
+//     demo ↔ real em sequência já não dispara um auth por clique.
 // ============================================================
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import type {
   BotEvent, BotEventType, BotState, BotSummary, BotLogEntry,
-  BotConfig, BotStrategyType, CatalogBot, WsStatus,
+  BotConfig, BotStrategyType, CatalogBot, WsStatus, SymbolFallbackInfo,
 } from '../lib/types'
 import { WS_URL } from '../lib/env'
+
+export interface ManualBuyParams {
+  symbol: string
+  contractType: 'DIGITOVER' | 'DIGITUNDER' | 'DIGITMATCH' | 'DIGITDIFF' | 'CALL' | 'PUT'
+  duration: number
+  durationUnit: 'ticks' | 's' | 'm'
+  stake: number
+  barrier?: number | string
+  /** Preenchido pelo BotsContext; o servidor devolve-o em todas as respostas. */
+  clientRef?: string
+}
+
+export interface ManualBuyResult {
+  clientRef?: string
+  success: boolean
+  contractId?: string
+  payout?: number
+  error?: string
+}
+
+export interface ManualTradeClosed {
+  clientRef?: string
+  contractId: string
+  profit: number
+  won: boolean
+  stake: number
+  exitTick?: number
+  exitDigit?: number
+}
+
+/** O servidor não conseguiu acompanhar o contrato até ao fim (pode continuar aberto na Deriv). */
+export interface ManualTradeError {
+  clientRef?: string
+  contractId?: string
+  message: string
+}
+
+/** Mercado disponível para a conta (vem do backend: active_symbols). */
+export interface MarketSymbol {
+  symbol: string
+  name?: string
+  market?: string
+  submarket?: string
+  isOpen: boolean
+  pipSize?: number
+}
 
 interface NexoraWsCallbacks {
   onCatalogLoaded?: (bots: CatalogBot[]) => void
@@ -25,7 +96,14 @@ interface NexoraWsCallbacks {
   onError?: (msg: string) => void
   onAuthFailed?: () => void
   onBalance?: (balance: number, currency: string) => void
-  onTick?: (quote: number) => void
+  onTick?: (quote: number, pipSize?: number, symbol?: string) => void
+  onTicksSnapshot?: (symbol: string, prices: number[], pipSize?: number) => void
+  onAvailableSymbols?: (symbols: MarketSymbol[]) => void
+  onManualBuyResult?: (result: ManualBuyResult) => void
+  onManualTradeClosed?: (trade: ManualTradeClosed) => void
+  onManualTradeError?: (err: ManualTradeError) => void
+  onSymbolFallback?: (info: SymbolFallbackInfo) => void
+  onDerivStatus?: (connected: boolean) => void
   token?: string | null
   accountId?: string | null
 }
@@ -33,13 +111,32 @@ interface NexoraWsCallbacks {
 const PING_INTERVAL_MS = 15_000
 const WATCHDOG_INTERVAL_MS = 10_000
 const WATCHDOG_TIMEOUT_MS = 40_000
+const BASE_RECONNECT_DELAY_MS = 1_500
 const MAX_RECONNECT_DELAY_MS = 30_000
+const STABLE_CONNECTION_MS = 10_000
+// Mínimo entre duas tentativas de ligação (cada uma custa GET contas + OTP + WS na Deriv)
+const MIN_ATTEMPT_GAP_MS = 4_000
+// Troca de conta: espera o utilizador "assentar" antes de reautenticar
+const AUTH_DEBOUNCE_MS = 300
+// Depois de um limite de taxa, o backoff começa neste nível (1,5 s × 2^3 = 12 s)
+const RATE_LIMIT_MIN_ATTEMPT = 3
+
+// Falhas de login em que a sessão deve terminar (token inválido, sem contas).
+// AUTH_TEMPORARY NÃO está aqui de propósito: é falha temporária, reconecta com backoff.
+const FATAL_AUTH_CODES = new Set(['AUTH_FAILED', 'MISSING_TOKEN', 'NO_ACCOUNTS', 'OTP_FAILED'])
+// Falhas temporárias / limite de taxa: reconectar mais devagar
+const RATE_LIMIT_CODES = new Set(['AUTH_TEMPORARY', 'RATE_LIMITED'])
+// Códigos que não devem mostrar mensagem de erro ao utilizador
+const SILENT_CODES = new Set(['AUTH_IN_PROGRESS'])
 
 export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
   const wsRef = useRef<WebSocket | null>(null)
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const reconnRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const attemptRef = useRef(0)
+  const openedAtRef = useRef(0)
+  const lastConnectAtRef = useRef(0)
+  const rateLimitedRef = useRef(false)
   const mountedRef = useRef(true)
   const cbRef = useRef(callbacks)
   cbRef.current = callbacks
@@ -50,16 +147,36 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
   const failedAuthKeyRef = useRef<string>('')
   const lastMessageAtRef = useRef<number>(Date.now())
   const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Gráfico: mercado pedido (re-enviado após cada autenticação) e estado da auth
+  const tickReqRef = useRef<{ symbol: string; count: number } | null>(null)
+  const authedRef = useRef(false)
   tokenRef.current = callbacks.token ?? null
   accountIdRef.current = callbacks.accountId ?? null
 
   const [wsStatus, setWsStatus] = useState<WsStatus>('disconnected')
 
-  const send = useCallback((type: string, payload: Record<string, unknown> = {}) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, payload }))
+  // Envio silencioso (consultas, ping, listas). Devolve se foi enviado.
+  const send = useCallback((type: string, payload: Record<string, unknown> = {}): boolean => {
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type, payload }))
+      return true
     }
+    return false
   }, [])
+
+  // Ações do utilizador (iniciar/parar bot, admin...): sem ligação, avisa
+  // em vez de falhar em silêncio.
+  const sendAction = useCallback((type: string, payload: Record<string, unknown> = {}): boolean => {
+    const ok = send(type, payload)
+    if (!ok) cbRef.current.onError?.('Sem ligação ao servidor. A reconectar…')
+    return ok
+  }, [send])
+
+  const clearTimers = () => {
+    if (pingRef.current) { clearInterval(pingRef.current); pingRef.current = null }
+    if (watchdogRef.current) { clearInterval(watchdogRef.current); watchdogRef.current = null }
+  }
 
   const handleMessage = useCallback((raw: string) => {
     let msg: Record<string, unknown> = {}
@@ -67,9 +184,6 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
     if (!msg?.type) return
 
     const type = msg.type as string
-    // O backend espalha o payload na raiz: { type, ...payload }
-    // por isso lemos tanto de msg.payload (caso exista) como
-    // directamente de msg para compatibilidade total.
     const payload = (msg.payload && typeof msg.payload === 'object'
       ? msg.payload
       : msg) as Record<string, unknown>
@@ -101,10 +215,6 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
           break
         }
 
-        // ── Saldo em tempo real ───────────────────────────────
-        // O backend emite: { type:'balance', balance:10092.59, currency:'USD' }
-        // Os campos estão na raiz (não em payload), por isso lemos
-        // directamente de `msg` além de `payload`.
         case 'balance': {
           const bal = typeof msg.balance === 'number' ? msg.balance
             : typeof payload.balance === 'number' ? payload.balance
@@ -116,23 +226,79 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
           break
         }
 
-        // ── Tick em tempo real ────────────────────────────────
-        // O backend emite: { type:'tick', quote:5123.44, epoch:..., symbol:... }
         case 'tick': {
           const quote = typeof msg.quote === 'number' ? msg.quote
             : typeof payload.quote === 'number' ? payload.quote
             : null
-          if (quote != null) cbRef.current.onTick?.(quote)
+          const pip = typeof msg.pip_size === 'number' ? msg.pip_size
+            : typeof payload.pip_size === 'number' ? payload.pip_size
+            : undefined
+          const symbol = typeof msg.symbol === 'string' ? msg.symbol
+            : typeof payload.symbol === 'string' ? payload.symbol
+            : undefined
+          if (quote != null) cbRef.current.onTick?.(quote, pip, symbol)
+          break
+        }
+
+        // ── Compra manual: confirmação imediata ────────────────
+        // { type:'manual_buy_result', payload:{ clientRef, success, contractId, payout, error } }
+        case 'manual_buy_result': {
+          cbRef.current.onManualBuyResult?.(payload as unknown as ManualBuyResult)
+          break
+        }
+
+        // ── Compra manual: resultado final do contrato ─────────
+        // { type:'manual_trade_closed', payload:{ clientRef, contractId, profit, won, stake, exitTick, exitDigit } }
+        case 'manual_trade_closed': {
+          cbRef.current.onManualTradeClosed?.(payload as unknown as ManualTradeClosed)
+          break
+        }
+
+        // ── Compra manual: não foi possível acompanhar o fecho ──
+        case 'manual_trade_error': {
+          cbRef.current.onManualTradeError?.(payload as unknown as ManualTradeError)
+          break
+        }
+
+        // ── O servidor mudou o mercado de um bot ────────────────
+        case 'bot_symbol_fallback': {
+          const p = payload as Partial<SymbolFallbackInfo>
+          if (p.from && p.to) cbRef.current.onSymbolFallback?.({ from: p.from, to: p.to, reason: p.reason })
+          break
+        }
+
+        // ── Gráfico: histórico inicial do mercado pedido ───────
+        // { type:'ticks_snapshot', payload:{ symbol, prices[], pip_size } }
+        case 'ticks_snapshot': {
+          const p = payload as { symbol?: string; prices?: number[]; pip_size?: number }
+          if (p.symbol && Array.isArray(p.prices)) cbRef.current.onTicksSnapshot?.(p.symbol, p.prices, p.pip_size)
+          break
+        }
+
+        // ── Lista de mercados da conta ──────────────────────────
+        case 'available_symbols': {
+          const p = payload as { symbols?: MarketSymbol[] }
+          if (Array.isArray(p.symbols)) cbRef.current.onAvailableSymbols?.(p.symbols)
           break
         }
 
         case 'authenticated':
+          attemptRef.current = 0 // autenticou: ligação boa, zera o backoff
+          rateLimitedRef.current = false
+          authedRef.current = true
           send('list_bots')
           send('list_session_bots')
+          send('get_available_symbols')
+          // (re)subscreve o gráfico: vale para o 1.º login, troca de conta e reconexões
+          if (tickReqRef.current) send('subscribe_ticks', tickReqRef.current)
           break
 
         case 'deriv_disconnected':
+          cbRef.current.onDerivStatus?.(false)
+          break
+
         case 'deriv_reconnected':
+          cbRef.current.onDerivStatus?.(true)
           break
 
         case 'pong':
@@ -146,11 +312,16 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
           const code = typeof payload.code === 'string' ? payload.code
             : typeof msg.code === 'string' ? msg.code
             : undefined
-          if (code === 'AUTH_FAILED' || code === 'MISSING_TOKEN' || code === 'NO_ACCOUNTS' || code === 'OTP_FAILED') {
+          if (code && FATAL_AUTH_CODES.has(code)) {
             failedAuthKeyRef.current = `${tokenRef.current}:${accountIdRef.current}`
             cbRef.current.onAuthFailed?.()
           }
-          cbRef.current.onError?.(errMsg)
+          if (code && RATE_LIMIT_CODES.has(code)) {
+            // Deriv a recusar/limitar: reconectar depressa só piora
+            rateLimitedRef.current = true
+            attemptRef.current = Math.max(attemptRef.current, RATE_LIMIT_MIN_ATTEMPT)
+          }
+          if (!code || !SILENT_CODES.has(code)) cbRef.current.onError?.(errMsg)
           break
         }
 
@@ -170,7 +341,9 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
 
   const connect = useCallback(() => {
     if (!mountedRef.current) return
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    const current = wsRef.current
+    // não abrir 2.º socket se já há um aberto OU a ligar
+    if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) return
 
     let ws: WebSocket
     try {
@@ -182,11 +355,12 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
       return
     }
     wsRef.current = ws
+    lastConnectAtRef.current = Date.now()
     setWsStatus('connecting')
 
     ws.onopen = () => {
-      if (!mountedRef.current) { ws.close(); return }
-      attemptRef.current = 0
+      if (!mountedRef.current || wsRef.current !== ws) { ws.close(); return }
+      openedAtRef.current = Date.now()
       setWsStatus('connected')
       ws.send(JSON.stringify({ type: 'list_bots', payload: {} }))
       if (tokenRef.current && accountIdRef.current) {
@@ -196,13 +370,14 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
           ws.send(JSON.stringify({ type: 'auth', payload: { token: tokenRef.current, accountId: accountIdRef.current } }))
         }
       }
+
+      clearTimers()
       pingRef.current = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN)
           ws.send(JSON.stringify({ type: 'ping', payload: {} }))
       }, PING_INTERVAL_MS)
 
       lastMessageAtRef.current = Date.now()
-      if (watchdogRef.current) clearInterval(watchdogRef.current)
       watchdogRef.current = setInterval(() => {
         if (Date.now() - lastMessageAtRef.current > WATCHDOG_TIMEOUT_MS) {
           console.warn('[NexoraWS] sem resposta há 40s — reconectando')
@@ -212,23 +387,39 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
     }
 
     ws.onmessage = (e) => {
+      if (wsRef.current !== ws) return
       lastMessageAtRef.current = Date.now()
       handleMessage(e.data)
     }
 
     ws.onerror = () => {
-      if (!mountedRef.current) return
+      if (!mountedRef.current || wsRef.current !== ws) return
       setWsStatus('error')
       cbRef.current.onError?.('Erro de conexão WebSocket')
     }
 
     ws.onclose = () => {
-      if (!mountedRef.current) return
+      // socket já substituído por outro: este evento não interessa
+      if (!mountedRef.current || wsRef.current !== ws) return
       setWsStatus('disconnected')
-      if (pingRef.current) { clearInterval(pingRef.current); pingRef.current = null }
-      if (watchdogRef.current) { clearInterval(watchdogRef.current); watchdogRef.current = null }
-      const delay = Math.min(1000 * 2 ** attemptRef.current, MAX_RECONNECT_DELAY_MS)
+      authedRef.current = false
+      clearTimers()
+      // ligação que aguentou >10 s era boa: recomeça o backoff do zero
+      // (exceto se o servidor acabou de sinalizar limite de taxa)
+      if (
+        openedAtRef.current &&
+        Date.now() - openedAtRef.current > STABLE_CONNECTION_MS &&
+        !rateLimitedRef.current
+      ) attemptRef.current = 0
+      openedAtRef.current = 0
+
+      // backoff exponencial com jitter ±20 %, respeitando o espaçamento mínimo
+      const base = Math.min(BASE_RECONNECT_DELAY_MS * 2 ** attemptRef.current, MAX_RECONNECT_DELAY_MS)
+      const jittered = Math.round(base * (0.8 + Math.random() * 0.4))
+      const sinceLastConnect = Date.now() - lastConnectAtRef.current
+      const delay = Math.max(jittered, MIN_ATTEMPT_GAP_MS - sinceLastConnect)
       attemptRef.current += 1
+      if (reconnRef.current) clearTimeout(reconnRef.current)
       reconnRef.current = setTimeout(connect, delay)
     }
   }, [handleMessage])
@@ -238,8 +429,7 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
     connect()
     return () => {
       mountedRef.current = false
-      if (pingRef.current) clearInterval(pingRef.current)
-      if (watchdogRef.current) clearInterval(watchdogRef.current)
+      clearTimers()
       if (reconnRef.current) clearTimeout(reconnRef.current)
       wsRef.current?.close()
     }
@@ -248,8 +438,13 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
   useEffect(() => {
     const tryFastReconnect = () => {
       if (!mountedRef.current) return
-      if (wsRef.current?.readyState === WebSocket.OPEN) return
-      attemptRef.current = 0
+      const rs = wsRef.current?.readyState
+      if (rs === WebSocket.OPEN || rs === WebSocket.CONNECTING) return
+      // não furar o espaçamento mínimo entre tentativas
+      if (Date.now() - lastConnectAtRef.current < MIN_ATTEMPT_GAP_MS) return
+      // em limite de taxa, reconectar já só piora: deixa o backoff correr
+      if (rateLimitedRef.current) return
+      attemptRef.current = Math.min(attemptRef.current, 1)
       if (reconnRef.current) { clearTimeout(reconnRef.current); reconnRef.current = null }
       connect()
     }
@@ -271,29 +466,54 @@ export function useNexoraWs(callbacks: NexoraWsCallbacks = {}) {
     const authKey = `${token}:${accountId}`
     if (lastAuthSentRef.current === authKey) return
     if (failedAuthKeyRef.current === authKey) return
-    const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) return
-    lastAuthSentRef.current = authKey
-    ws.send(JSON.stringify({ type: 'auth', payload: { token, accountId } }))
+
+    // debounce: trocas rápidas demo ↔ real só enviam o último auth
+    const timer = setTimeout(() => {
+      const ws = wsRef.current
+      if (!ws || ws.readyState !== WebSocket.OPEN) return
+      if (lastAuthSentRef.current === authKey) return
+      lastAuthSentRef.current = authKey
+      ws.send(JSON.stringify({ type: 'auth', payload: { token, accountId } }))
+    }, AUTH_DEBOUNCE_MS)
+
+    return () => clearTimeout(timer)
   }, [callbacks.token, callbacks.accountId])
 
   return {
     wsStatus,
-    listCatalogBots: useCallback(() => send('list_bots'), [send]),
-    listSessionBots: useCallback(() => send('list_session_bots'), [send]),
-    startCatalogBot: useCallback((catalogBotId: string, sessionName?: string, configOverride?: Partial<BotConfig>) =>
-      send('start_catalog_bot', { catalogBotId, sessionName, configOverride: configOverride ?? {} }), [send]),
-    stopBot: useCallback((botId: string) => send('stop_bot', { botId }), [send]),
-    pauseBot: useCallback((botId: string) => send('pause_bot', { botId }), [send]),
-    resumeBot: useCallback((botId: string) => send('resume_bot', { botId }), [send]),
-    deleteBot: useCallback((botId: string) => send('delete_bot', { botId }), [send]),
-    getBotLogs: useCallback((botId: string, limit = 100) => send('get_bot_logs', { botId, limit }), [send]),
+    // ── Gráfico / mercados (dados da sessão, via backend) ───────
+    // Guarda o pedido e envia já se autenticado; após reconexão/troca de
+    // conta é reenviado em 'authenticated'.
+    subscribeTicks: useCallback((symbol: string, count = 1000) => {
+      tickReqRef.current = { symbol, count }
+      if (authedRef.current) send('subscribe_ticks', { symbol, count })
+    }, [send]),
+    unsubscribeTicks: useCallback(() => {
+      tickReqRef.current = null
+      send('unsubscribe_ticks')
+    }, [send]),
+    getAvailableSymbols: useCallback(() => { send('get_available_symbols') }, [send]),
+    listCatalogBots: useCallback(() => { send('list_bots') }, [send]),
+    listSessionBots: useCallback(() => { send('list_session_bots') }, [send]),
+    startCatalogBot: useCallback((catalogBotId: string, sessionName?: string, configOverride?: Partial<BotConfig>) => {
+      sendAction('start_catalog_bot', { catalogBotId, sessionName, configOverride: configOverride ?? {} })
+    }, [sendAction]),
+    stopBot: useCallback((botId: string) => { sendAction('stop_bot', { botId }) }, [sendAction]),
+    pauseBot: useCallback((botId: string) => { sendAction('pause_bot', { botId }) }, [sendAction]),
+    resumeBot: useCallback((botId: string) => { sendAction('resume_bot', { botId }) }, [sendAction]),
+    deleteBot: useCallback((botId: string) => { sendAction('delete_bot', { botId }) }, [sendAction]),
+    getBotLogs: useCallback((botId: string, limit = 100) => { send('get_bot_logs', { botId, limit }) }, [send]),
+    // ── Compra manual ──────────────────────────────────────────
+    // Devolve false se não houver ligação (o BotsContext mostra o erro no ecrã).
+    manualBuy: useCallback((params: ManualBuyParams): boolean =>
+      send('manual_buy', params as unknown as Record<string, unknown>), [send]),
     adminAddCatalogBot: useCallback((dto: {
       name: string; description: string; strategy: BotStrategyType
       defaultConfig: BotConfig; tags?: string[]; isActive?: boolean
-    }) => send('admin_add_catalog_bot', dto as Record<string, unknown>), [send]),
-    adminRemoveCatalogBot: useCallback((id: string) => send('admin_remove_catalog_bot', { id }), [send]),
-    adminUpdateCatalogBot: useCallback((id: string, updates: Record<string, unknown>) =>
-      send('admin_update_catalog_bot', { id, ...updates }), [send]),
+    }) => { sendAction('admin_add_catalog_bot', dto as Record<string, unknown>) }, [sendAction]),
+    adminRemoveCatalogBot: useCallback((id: string) => { sendAction('admin_remove_catalog_bot', { id }) }, [sendAction]),
+    adminUpdateCatalogBot: useCallback((id: string, updates: Record<string, unknown>) => {
+      sendAction('admin_update_catalog_bot', { id, ...updates })
+    }, [sendAction]),
   }
 }

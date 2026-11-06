@@ -1,5 +1,12 @@
 // ============================================================
 // NEXORA FOREX — Cliente API REST
+//
+// ALTERAÇÃO (compatibilidade com o backend): fetchWithAuth agora lança
+// HttpError (com .status) e extrai a mensagem do corpo em qualquer formato
+// ({ error: { message } } | { message } | { error: "texto" }).
+// Antes fazia `err.message || err.error`: quando `error` era um objeto
+// o utilizador via "[object Object]", e não havia como distinguir 401
+// de uma falha de servidor sem procurar texto na mensagem.
 // ============================================================
 
 import { API_BASE_URL, DERIV_APP_ID } from './env'
@@ -55,18 +62,15 @@ export interface AdminStats {
 }
 
 // ── Relatório de comissão (Deriv markup-statistics) ─────────
-//
-// CORREÇÃO: o backend (GET /api/admin/markup-statistics) usa
-// DerivAPIService.getAppMarkupStatistics(), que já filtra o
-// breakdown da Deriv para devolver SÓ os totais da app Lucro IA
-// — a resposta nunca inclui um campo `breakdown` (ver
-// admin.routes.ts, res.json({...}) no final da rota). O tipo
-// tinha `breakdown: MarkupStatisticsBreakdown[]` como campo
-// obrigatório, o que causava
-// `TypeError: Cannot read properties of undefined (reading 'length')`
-// no AdminPage assim que os dados chegavam. Alinhado aqui com o
-// shape real da resposta: app_id + app_found (para distinguir
-// "sem movimento no período" de dados a 0 por outro motivo).
+export interface MarkupStatisticsBreakdown {
+  app_id: string
+  app_markup_usd: number
+  volume_usd: number
+  payout_usd: number
+  contract_count: number
+  client_count: number
+}
+
 export interface MarkupCommissionSplit {
   kelvin: number
   platform: number
@@ -75,13 +79,12 @@ export interface MarkupCommissionSplit {
 }
 
 export interface MarkupStatisticsData {
-  app_id: string
-  app_found: boolean
   total_app_markup_usd: number
   total_volume_usd: number
   total_payout_usd: number
   total_contract_count: number
   total_client_count: number
+  breakdown: MarkupStatisticsBreakdown[]
   date_from: string
   date_to: string
   commission_split: MarkupCommissionSplit
@@ -103,11 +106,29 @@ export class DerivTokenExpiredError extends Error {
   }
 }
 
+// Erro HTTP com o código de estado — permite distinguir 401
+// (sessão inválida) de falhas de rede/servidor.
+export class HttpError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'HttpError'
+    this.status = status
+  }
+}
+
 export interface RegisterPayload {
   fullName: string
   whatsapp: string
   email: string
   password: string
+}
+
+export interface LocalSessionResponse {
+  success: boolean
+  created?: boolean   // true quando a conta foi criada neste login
+  token: string
+  user: LocalUser
 }
 
 // Re-exportado para quem importa o tipo a partir de '../lib/api'
@@ -125,6 +146,17 @@ function getToken(): string | null {
 
 function getLocalToken(): string | null {
   return localStorage.getItem('localToken')
+}
+
+// Extrai a mensagem de erro, qualquer que seja o formato do backend:
+// { error: { message } } | { message } | { error: "texto" }
+function extractErrorMessage(body: any, status: number): string {
+  return (
+    body?.error?.message ||
+    body?.message ||
+    (typeof body?.error === 'string' ? body.error : '') ||
+    `HTTP ${status}`
+  )
 }
 
 async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
@@ -145,7 +177,7 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
       window.location.href = '/'
     }
     const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || err.error || `HTTP ${response.status}`)
+    throw new HttpError(extractErrorMessage(err, response.status), response.status)
   }
   return response.json()
 }
@@ -155,8 +187,10 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
 //
 // O backend (requireLocalAuth) lê o header "x-local-authorization",
 // não "Authorization" — este último já é usado pelo token de sessão
-// Deriv nas rotas de trading, por isso o backend usa um header
-// próprio para não colidirem.
+// Deriv nas rotas de trading.
+//
+// Lança HttpError (com .status) para o AuthContext conseguir
+// distinguir 401 de uma falha de rede.
 async function fetchWithLocalAuth(endpoint: string, options: RequestInit = {}) {
   const token = getLocalToken()
   const headers: Record<string, string> = {
@@ -168,7 +202,7 @@ async function fetchWithLocalAuth(endpoint: string, options: RequestInit = {}) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers })
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || err.error || `HTTP ${response.status}`)
+    throw new HttpError(extractErrorMessage(err, response.status), response.status)
   }
   return response.json()
 }
@@ -204,12 +238,14 @@ export const api = {
     } catch (e) {
       console.error('[API] Logout error:', e)
     } finally {
-      localStorage.clear()
+      // Não usar localStorage.clear(): apagava também os termos aceites, a
+      // preferência de som e a sessão Deriv guardada. O AuthContext remove
+      // só as chaves da sessão ativa.
       sessionStorage.clear()
     }
   },
 
-  // ── Registo / Login local ─────────────────────────────────
+  // ── Login local (entra ou cria a conta automaticamente) ───
   async register(payload: RegisterPayload): Promise<{ success: boolean; message: string; user: LocalUser }> {
     const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
@@ -218,12 +254,12 @@ export const api = {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      throw new Error(data?.error?.message || data?.message || `HTTP ${res.status}`)
+      throw new Error(extractErrorMessage(data, res.status))
     }
     return data
   },
 
-  async loginLocal(email: string, password: string): Promise<{ success: boolean; token: string; user: LocalUser }> {
+  async loginLocal(email: string, password: string): Promise<LocalSessionResponse> {
     const res = await fetch(`${API_BASE_URL}/api/auth/login-local`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -231,7 +267,7 @@ export const api = {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      throw new Error(data?.error?.message || data?.message || `HTTP ${res.status}`)
+      throw new Error(extractErrorMessage(data, res.status))
     }
     return data
   },
@@ -286,7 +322,7 @@ export const api = {
           data.message || 'O token da Deriv para o relatório de comissão expirou ou é inválido.',
         )
       }
-      throw new Error(data?.message || data?.error || `HTTP ${res.status}`)
+      throw new Error(extractErrorMessage(data, res.status))
     }
     return data
   },
@@ -388,7 +424,7 @@ export const api = {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      throw new Error(err.error || `HTTP ${res.status}`)
+      throw new Error(extractErrorMessage(err, res.status))
     }
     return res.json()
   },

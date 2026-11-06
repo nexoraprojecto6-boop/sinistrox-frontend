@@ -3,7 +3,10 @@
 // ============================================================
 
 export type BotStatus       = 'idle' | 'running' | 'paused' | 'stopped' | 'error'
-export type BotStrategyType = 'scalping' | 'martingale' | 'anti_martingale' | 'trend_following'
+// Igual ao backend: faltavam scalper, alfha, over1_recovery e even_odd_recovery
+export type BotStrategyType =
+  | 'scalping' | 'martingale' | 'anti_martingale' | 'trend_following'
+  | 'scalper' | 'alfha' | 'over1_recovery' | 'even_odd_recovery'
 export type TradeDirection  = 'CALL' | 'PUT'
 export type LogLevel        = 'info' | 'warn' | 'error' | 'trade'
 
@@ -87,10 +90,22 @@ export interface TradeClosedPayload {
   contractType?: string
 }
 
+// Os bots enviam campos diferentes conforme a estratégia:
+// direction (CALL/PUT), side (Alfha), contractType (Even/Odd), barrier (dígitos)
 export interface TradeOpenedPayload {
   contractId: string
   stake: number
-  direction: TradeDirection
+  direction?: TradeDirection
+  side?: string
+  contractType?: string
+  barrier?: number | string
+}
+
+// O servidor mudou o mercado de um bot (fechado/suspenso/indisponível na conta)
+export interface SymbolFallbackInfo {
+  from: string
+  to: string
+  reason?: string
 }
 
 export interface CatalogBot {
@@ -178,8 +193,8 @@ function buildCommonFields(): StrategyFieldDef[] {
     { key: 'duration', label: 'Duração', type: 'number', defaultValue: 5, min: 1, max: 60, step: 1, group: 'Contrato', description: 'Ticks: 1–10 recomendado. Segundos: 15–60.' },
     { key: 'durationUnit', label: 'Unidade', type: 'select', defaultValue: 'ticks', group: 'Contrato', options: DURATION_UNIT_OPTIONS },
     { key: 'initialStake', label: 'Stake Inicial (USD)', type: 'number', defaultValue: 1, min: 0.35, step: 0.01, group: 'Risco', description: 'Valor apostado no primeiro contrato (mín. $0.35)' },
-    { key: 'maxLoss', label: 'Perda Máxima (USD)', type: 'number', defaultValue: 20, min: 1, step: 0.5, group: 'Risco', description: 'Para o bot quando a perda acumulada atingir este valor' },
-    { key: 'maxProfit', label: 'Take Profit (USD)', type: 'number', defaultValue: 50, min: 1, step: 0.5, group: 'Risco', description: 'Para o bot quando o lucro acumulado atingir este valor' },
+    { key: 'maxLoss', label: 'Perda Máxima (USD)', type: 'number', defaultValue: 10, min: 1, step: 0.5, group: 'Risco', description: 'Para o bot quando a perda acumulada atingir este valor' },
+    { key: 'maxProfit', label: 'Take Profit (USD)', type: 'number', defaultValue: 10, min: 1, step: 0.5, group: 'Risco', description: 'Para o bot quando o lucro acumulado atingir este valor' },
     { key: 'maxTrades', label: 'Máx. Trades (0 = ilimitado)', type: 'number', defaultValue: 0, min: 0, step: 1, group: 'Risco' },
   ]
 }
@@ -188,6 +203,10 @@ export function getCommonConfigFields(_strategy: BotStrategyType): StrategyField
   return buildCommonFields()
 }
 
+// As 4 estratégias novas ficam com lista vazia: o tipo agora cobre todas as
+// estratégias que o backend envia e `STRATEGY_PARAMS_FIELDS[strategy]` deixa de
+// ser `undefined` (era um possível erro ao abrir a configuração desses bots).
+// A interface visual NÃO muda.
 export const STRATEGY_PARAMS_FIELDS: Record<BotStrategyType, StrategyFieldDef[]> = {
   martingale: [
     { key: 'multiplier', label: 'Multiplicador', type: 'number', defaultValue: 2, min: 1.1, step: 0.1, group: 'Martingale', description: 'Fator de multiplicação do stake após perda' },
@@ -206,6 +225,10 @@ export const STRATEGY_PARAMS_FIELDS: Record<BotStrategyType, StrategyFieldDef[]>
     { key: 'ticksWindow', label: 'Janela de Ticks', type: 'number', defaultValue: 20, min: 5, max: 100, step: 1, group: 'Trend' },
     { key: 'trendThreshold', label: 'Limiar de Tendência', type: 'number', defaultValue: 0.002, min: 0.0001, step: 0.0001, group: 'Trend' },
   ],
+  scalper: [],
+  alfha: [],
+  over1_recovery: [],
+  even_odd_recovery: [],
 }
 
 export const STRATEGY_LABELS: Record<BotStrategyType, string> = {
@@ -213,4 +236,8 @@ export const STRATEGY_LABELS: Record<BotStrategyType, string> = {
   martingale: 'Martingale',
   anti_martingale: 'Anti-Martingale',
   trend_following: 'Trend Following',
+  scalper: 'Scalper',
+  alfha: 'Alfha',
+  over1_recovery: 'Over 1 Recovery',
+  even_odd_recovery: 'Even/Odd Recovery',
 }
