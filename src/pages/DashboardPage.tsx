@@ -11,6 +11,7 @@ import { Footer } from '../components/Footer'
 import { NotificationBar } from '../components/NotificationBar'
 import NotificationCenterFloating from '../components/NotificationCenterFloating'
 import { DepositModal } from '../components/DepositModal'
+import Logo from '../components/Logo'
 import { useLoader } from '../context/LoaderContext'
 import { useNotifications } from '../hooks/useNotifications'
 
@@ -35,7 +36,7 @@ function DashboardLoader() {
       alignItems: 'center', justifyContent: 'center', gap: 20,
       background: 'rgba(11,13,18,0.97)',
     }}>
-      <h1 className="logo-text" style={{ fontSize: 20 }}>NEXORA FOREX</h1>
+      <Logo size={24} />
       <div style={{ position: 'relative', width: 56, height: 56 }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: 'var(--blue-hi)', borderRightColor: 'rgba(24,87,255,0.15)', animation: 'spin 0.85s linear infinite' }} />
         <div style={{ position: 'absolute', inset: 9, borderRadius: '50%', border: '2px solid transparent', borderBottomColor: 'var(--red-hi)', borderLeftColor: 'rgba(233,32,63,0.15)', animation: 'spin 0.65s linear infinite reverse' }} />
@@ -95,7 +96,7 @@ function DashboardInner() {
         borderBottom: '1px solid var(--border)', flexShrink: 0, gap: 8,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <span className="logo-text" style={{ fontSize: 16, whiteSpace: 'nowrap' }}>NEXORA FOREX</span>
+          <Logo size={18} />
         </div>
 
         {/* Botão DEPOSITAR + Botão MENU + sino de notificação sobreposto no canto */}

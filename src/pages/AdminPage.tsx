@@ -9,6 +9,10 @@ import type { AdminNotification } from '../lib/types'
 type Tab = 'todos' | 'nao_verificados' | 'bloqueados' | 'online' | 'novos_hoje' | 'inativos'
 type CommissionFilterMode = 'mes' | 'intervalo'
 
+// Tabs e lista de utilizadores inscritos ocultas.
+// Muda para true para voltar a mostrá-las.
+const SHOW_USER_LISTS = false
+
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
@@ -599,80 +603,84 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Tabs de utilizadores */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ display: 'flex', color: 'var(--text-faint)' }}><IconUsers2 /></span>
-          <p style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 600 }}>Utilizadores</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 }}>
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                padding: '8px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
-                border: `1px solid ${tab === t.key ? 'var(--blue)' : 'var(--border)'}`,
-                background: tab === t.key ? 'rgba(24,87,255,0.12)' : 'transparent',
-                color: tab === t.key ? 'var(--blue-hi)' : 'var(--text-dim)',
-                cursor: 'pointer',
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Lista de utilizadores */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          {sortedUsers.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center' }}>
-              <p style={{ color: 'var(--text-faint)', fontSize: 13 }}>Nenhum utilizador nesta categoria.</p>
+        {SHOW_USER_LISTS && (
+          <>
+            {/* Tabs de utilizadores */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ display: 'flex', color: 'var(--text-faint)' }}><IconUsers2 /></span>
+              <p style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 600 }}>Utilizadores</p>
             </div>
-          ) : (
-            sortedUsers.map((u, idx) => {
-              const isOnline = u.lastActiveAt !== null && now - u.lastActiveAt <= ONLINE_THRESHOLD_MS
-              return (
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 }}>
+              {TABS.map((t) => (
                 <button
-                  key={u.id}
-                  onClick={() => setSelectedUser(u)}
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
                   style={{
-                    width: '100%', textAlign: 'left', padding: '14px 16px', background: 'transparent', border: 'none',
-                    borderBottom: idx < sortedUsers.length - 1 ? '1px solid var(--border)' : 'none',
-                    display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                    padding: '8px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
+                    border: `1px solid ${tab === t.key ? 'var(--blue)' : 'var(--border)'}`,
+                    background: tab === t.key ? 'rgba(24,87,255,0.12)' : 'transparent',
+                    color: tab === t.key ? 'var(--blue-hi)' : 'var(--text-dim)',
+                    cursor: 'pointer',
                   }}
                 >
-                  <span style={{
-                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                    background: isOnline ? 'var(--green)' : 'var(--border-hi)',
-                  }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <p style={{ color: 'var(--white)', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {u.fullName || '(sem nome)'}
-                      </p>
-                      {u.role === 'admin' && (
-                        <span style={{ padding: '1px 7px', background: 'rgba(245,166,35,0.15)', color: '#f5a623', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>ADMIN</span>
-                      )}
-                      {u.status === 'blocked' && (
-                        <span style={{ padding: '1px 7px', background: 'rgba(233,32,63,0.15)', color: 'var(--red-hi)', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>BLOQUEADO</span>
-                      )}
-                      {!u.emailVerified && (
-                        <span style={{ padding: '1px 7px', background: 'rgba(245,166,35,0.1)', color: '#f5a623', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>NÃO VERIFICADO</span>
-                      )}
-                    </div>
-                    <p style={{ color: 'var(--text-faint)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {u.email} · {u.whatsapp}
-                    </p>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>Registado</p>
-                    <p style={{ color: 'var(--text-dim)', fontSize: 11.5 }}>{formatDate(u.createdAt)}</p>
-                  </div>
+                  {t.label}
                 </button>
-              )
-            })
-          )}
-        </div>
+              ))}
+            </div>
+
+            {/* Lista de utilizadores */}
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              {sortedUsers.length === 0 ? (
+                <div style={{ padding: 32, textAlign: 'center' }}>
+                  <p style={{ color: 'var(--text-faint)', fontSize: 13 }}>Nenhum utilizador nesta categoria.</p>
+                </div>
+              ) : (
+                sortedUsers.map((u, idx) => {
+                  const isOnline = u.lastActiveAt !== null && now - u.lastActiveAt <= ONLINE_THRESHOLD_MS
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => setSelectedUser(u)}
+                      style={{
+                        width: '100%', textAlign: 'left', padding: '14px 16px', background: 'transparent', border: 'none',
+                        borderBottom: idx < sortedUsers.length - 1 ? '1px solid var(--border)' : 'none',
+                        display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                        background: isOnline ? 'var(--green)' : 'var(--border-hi)',
+                      }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <p style={{ color: 'var(--white)', fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {u.fullName || '(sem nome)'}
+                          </p>
+                          {u.role === 'admin' && (
+                            <span style={{ padding: '1px 7px', background: 'rgba(245,166,35,0.15)', color: '#f5a623', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>ADMIN</span>
+                          )}
+                          {u.status === 'blocked' && (
+                            <span style={{ padding: '1px 7px', background: 'rgba(233,32,63,0.15)', color: 'var(--red-hi)', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>BLOQUEADO</span>
+                          )}
+                          {!u.emailVerified && (
+                            <span style={{ padding: '1px 7px', background: 'rgba(245,166,35,0.1)', color: '#f5a623', fontSize: 9.5, fontWeight: 700, borderRadius: 20 }}>NÃO VERIFICADO</span>
+                          )}
+                        </div>
+                        <p style={{ color: 'var(--text-faint)', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {u.email} · {u.whatsapp}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>Registado</p>
+                        <p style={{ color: 'var(--text-dim)', fontSize: 11.5 }}>{formatDate(u.createdAt)}</p>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Modal de detalhes / ações do utilizador */}

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
+import Logo from '../components/Logo'
 
 interface LoaderProps {
   isVisible: boolean
@@ -30,7 +31,7 @@ function Loader({ isVisible, text = 'A carregar...', progress }: LoaderProps) {
       alignItems: 'center', justifyContent: 'center', gap: 18,
       background: 'rgba(7,11,20,0.92)', backdropFilter: 'blur(12px)',
     }}>
-      <div className="logo-text" style={{ fontSize: 18 }}>NEXORA</div>
+      <Logo size={24} />
       <div style={{ position: 'relative', width: 58, height: 58 }}>
         <div style={{
           position: 'absolute', inset: 0, borderRadius: '50%',

@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { useLoader } from '../context/LoaderContext'
 import { api } from '../lib/api'
 import { isSoundEnabled, setSoundEnabled, playGainSound } from '../lib/sound'
+import Logo from '../components/Logo'
 
 const WHATSAPP = '976289984'
 const MENTORIA_VIP_LINK = 'https://chat.whatsapp.com/GaFZpRc5w7C4uX8rusX4bO'
@@ -64,16 +65,16 @@ const LOCAL_AVISOS = [
   { id: '3', titulo: 'Promoção Mentoria VIP', mensagem: 'Vagas limitadas para mentoria VIP de maio. Entre em contacto agora.', data: '25/04/2026' },
 ]
 
-const TERMOS = `TERMOS E CONDIÇÕES — NEXORA FOREX
+const TERMOS = `TERMOS E CONDIÇÕES — SINISTRO X
 
 1. ACEITAÇÃO DOS TERMOS
-Ao utilizar a plataforma Nexora Forex, o utilizador aceita integralmente os presentes termos e condições.
+Ao utilizar a plataforma Sinistro X, o utilizador aceita integralmente os presentes termos e condições.
 
 2. RISCOS
 O trading envolve riscos elevados de perda de capital. Os resultados passados não garantem resultados futuros. O utilizador é o único responsável pelas suas decisões de investimento.
 
 3. RESPONSABILIDADE
-A Nexora Forex não se responsabiliza por perdas financeiras resultantes do uso da plataforma.
+O Sinistro X não se responsabiliza por perdas financeiras resultantes do uso da plataforma.
 
 4. CONTACTO
 Para questões, contacte-nos via WhatsApp: +${WHATSAPP}`
@@ -192,7 +193,7 @@ export default function MenuPage() {
           <button onClick={goBack} aria-label="Voltar" className="btn-ghost" style={{ width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
             <IoChevronBack size={20} />
           </button>
-          <h1 className="logo-text" style={{ fontSize: 18 }}>NEXORA</h1>
+          <Logo size={20} />
         </div>
       </div>
 

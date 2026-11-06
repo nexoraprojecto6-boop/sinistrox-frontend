@@ -6,6 +6,7 @@ import { useLoader } from '../context/LoaderContext'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import { inputStyle, labelStyle, errorTextStyle } from '../lib/glass'
+import Logo from '../components/Logo'
 
 // ---------------------------------------------------------------------------
 // Bandeiras (apenas visual — não altera nenhuma lógica de autenticação/i18n
@@ -22,46 +23,28 @@ const FLAGS = [
 
 // ---------------------------------------------------------------------------
 // Termos e Condições — mostrados no modal depois do login.
-// O texto da Nexora fica embutido; o da Deriv só é linkado.
+// O texto do Sinistro X fica embutido; o da Deriv só é linkado.
 // ---------------------------------------------------------------------------
-const TERMOS_NEXORA = `TERMOS E CONDIÇÕES — NEXORA FOREX
+const TERMOS_NEXORA = `TERMOS E CONDIÇÕES — SINISTRO X
 
 1. ACEITAÇÃO DOS TERMOS
-Ao utilizar a plataforma Nexora Forex, o utilizador aceita integralmente os presentes termos e condições.
+Ao utilizar a plataforma Sinistro X, o utilizador aceita integralmente os presentes termos e condições.
 
 2. RISCOS
 O trading envolve riscos elevados de perda de capital. Os resultados passados não garantem resultados futuros. O utilizador é o único responsável pelas suas decisões de investimento.
 
 3. RESPONSABILIDADE
-A Nexora Forex não se responsabiliza por perdas financeiras resultantes do uso da plataforma.
+O Sinistro X não se responsabiliza por perdas financeiras resultantes do uso da plataforma.
 
 4. CONTACTO
 Para questões, contacte-nos via WhatsApp: +244976289984`
 
 const DERIV_TERMS_URL = 'https://deriv.com/tnc/general-terms.pdf'
+// Chave mantida igual para quem já aceitou os termos não ter de aceitar outra vez
 const TERMS_ACCEPTED_KEY = 'nexora_terms_accepted_v1'
 
 function termsAlreadyAccepted(): boolean {
   try { return localStorage.getItem(TERMS_ACCEPTED_KEY) === '1' } catch { return false }
-}
-
-// ---------------------------------------------------------------------------
-// Marca — logótipo 100% em SVG/código, sem ficheiro de imagem
-// ---------------------------------------------------------------------------
-function BrandMark({ size = 40 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" className="brand-mark">
-      <path d="M14 1L27 14L14 27L1 14L14 1Z" stroke="url(#nxGradLogin)" strokeWidth="1.6" />
-      <path d="M8 16.5L11.5 12L15 15.5L20 9" stroke="url(#nxGradLogin)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <defs>
-        <linearGradient id="nxGradLogin" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#ffffff" />
-          <stop offset="0.55" stopColor="var(--blue-hi)" />
-          <stop offset="1" stopColor="var(--red-hi)" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
 }
 
 export default function LoginPage() {
@@ -165,11 +148,8 @@ export default function LoginPage() {
 
       {/* Contentor de entrada (sem quadrado/borda) */}
       <div className="fade-in" style={cardStyle}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="brand" style={{ justifyContent: 'center', marginBottom: 10 }}>
-            <BrandMark size={40} />
-          </div>
-          <h1 className="brand-text brand-text--lg">NEXORA FOREX</h1>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Logo size={36} />
         </div>
 
         <form onSubmit={handleSubmit} style={{ marginTop: 26 }}>
@@ -215,11 +195,11 @@ export default function LoginPage() {
         </p>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 Nexora Forex</p>
+          <p style={{ color: 'var(--text-faint)', fontSize: 11 }}>© 2026 Sinistro X</p>
         </div>
       </div>
 
-      {/* Modal — Termos e Condições da Nexora e da Deriv */}
+      {/* Modal — Termos e Condições do Sinistro X e da Deriv */}
       {showTerms && <TermsModal onAccept={handleAcceptTerms} onDecline={handleDeclineTerms} />}
     </div>
   )
@@ -238,7 +218,7 @@ function TermsModal({ onAccept, onDecline }: { onAccept: () => void; onDecline: 
           <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 16 }}>Termos e Condições</p>
         </div>
 
-        {/* Tabs — Nexora / Deriv */}
+        {/* Tabs — Sinistro X / Deriv */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <button
             onClick={() => setTab('nexora')}
@@ -248,7 +228,7 @@ function TermsModal({ onAccept, onDecline }: { onAccept: () => void; onDecline: 
               borderBottom: tab === 'nexora' ? '2px solid var(--blue-hi)' : '2px solid transparent',
             }}
           >
-            NEXORA FOREX
+            SINISTRO X
           </button>
           <button
             onClick={() => setTab('deriv')}
@@ -270,10 +250,10 @@ function TermsModal({ onAccept, onDecline }: { onAccept: () => void; onDecline: 
           ) : (
             <div>
               <p style={{ color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.7, marginBottom: 14 }}>
-                Ao ligar a tua conta Deriv através da Nexora Forex, estás também
+                Ao ligar a tua conta Deriv através do Sinistro X, estás também
                 sujeito aos termos e condições gerais da Deriv, que regulam a
                 abertura de conta, depósitos, levantamentos e a negociação de
-                contratos na própria Deriv. A Nexora Forex não altera nem
+                contratos na própria Deriv. O Sinistro X não altera nem
                 substitui esses termos.
               </p>
               <a

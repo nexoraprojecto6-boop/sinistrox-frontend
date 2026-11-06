@@ -1,30 +1,25 @@
-# Sinistro X — logo e nome
+# Sinistro X — ficheiros completos
 
-Copia as pastas deste zip para a raiz do projeto (`src/`, `public/`, `scripts/`).
+Copia o conteúdo desta pasta para a raiz do projeto, substituindo os ficheiros com o mesmo nome.
 
-## 1. Trocar o nome nos textos
-```
-node scripts/rename-to-sinistro-x.mjs          # só mostra o que muda
-node scripts/rename-to-sinistro-x.mjs --apply  # grava
-```
+## Ficheiros novos
+- src/components/Logo.tsx e Logo.css (logo SINISTRO + X vermelho)
+- public/favicon.svg
 
-## 2. Colocar a logo
-Onde hoje aparece o logótipo/nome (login, menu, dashboard, rodapé), usa:
-```tsx
-import Logo from "../components/Logo";
-<Logo size={28} />
-```
-Só o X (ícone): `import { LogoMark } from "../components/Logo";`
+## Ficheiros substituídos
+- index.html (título, favicon, fonte da logo)
+- src/context/LoaderContext.tsx (logo no loader global)
+- src/pages/DashboardPage.tsx (logo no header e no loader do dashboard)
+- src/pages/LoginPage.tsx (logo + textos e termos)
+- src/pages/MenuPage.tsx (logo + termos)
+- src/pages/AdminPage.tsx (listas de inscritos ocultas; SHOW_USER_LISTS = true para voltar a mostrar)
+- src/pages/VideoLessonsPage.tsx (sem vídeos)
 
-## 3. Favicon e título (index.html)
-```html
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-<title>Sinistro X</title>
-<!-- opcional, fonte da logo -->
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap" rel="stylesheet" />
-```
+## Ainda por fazer
+Páginas que não vi (RegisterPage, ConnectDerivPage, Footer, VerifyPending, VerifyEmailResult...),
+comentários em api.ts/types.ts, package.json e README:
 
-## 4. Manualmente
-- `package.json` → `"name": "sinistrox-frontend"`
-- `render.yaml` → nome do serviço, se quiseres mudar
-- Mantém a URL do backend (`banckend-nexora.onrender.com`) como está
+    node scripts/rename-to-sinistro-x.mjs          # só mostra
+    node scripts/rename-to-sinistro-x.mjs --apply  # grava
+
+Se algum ficheiro usar logo.png: grep -rn "logo.png" src  e troca por <Logo />.
