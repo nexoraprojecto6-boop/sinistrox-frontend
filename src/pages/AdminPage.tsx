@@ -436,7 +436,7 @@ export default function AdminPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
               <div>
                 <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 15 }}>Relatório de Comissão</p>
-                <p style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 2 }}>Markup da app na Deriv, dividido entre Kelvin e a plataforma</p>
+                <p style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 2 }}>Comissão da app Sinistro X na Deriv, dividida entre Kelvin e a plataforma</p>
               </div>
 
               {/* Alternar Mês / Intervalo */}
@@ -587,7 +587,7 @@ export default function AdminPage() {
             )}
 
             {!markupError && !markup && !markupLoading && (
-              <p style={{ color: 'var(--text-faint)', fontSize: 12.5 }}>Sem dados para o período selecionado.</p>
+              <p style={{ color: 'var(--text-faint)', fontSize: 12.5 }}>Sem comissão da app Sinistro X no período selecionado.</p>
             )}
           </div>
 
