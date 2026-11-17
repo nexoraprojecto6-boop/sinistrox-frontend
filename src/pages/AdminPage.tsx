@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLoader } from '../context/LoaderContext'
 import { api, DerivTokenExpiredError } from '../lib/api'
+import { DERIV_APP_ID } from '../lib/env'
 import type { AdminStats, AdminUserRow, MarkupStatisticsData } from '../lib/api'
 import type { AdminNotification } from '../lib/types'
 
@@ -198,7 +199,26 @@ export default function AdminPage() {
       const data = filterMode === 'mes'
         ? await api.getMarkupStatistics({ month: selMonth, year: selYear })
         : await api.getMarkupStatistics({ dateFrom, dateTo })
-      setMarkup(data)
+      // Mostra apenas a comissão do app Sinistro X (DERIV_APP_ID); ignora todos
+      // os outros app IDs e recalcula totais e divisão só com esse app.
+      const rows = (data.breakdown || []).filter((b) => String(b.app_id) === String(DERIV_APP_ID))
+      const totalMarkup = rows.reduce((acc, b) => acc + (b.app_markup_usd || 0), 0)
+      const kPct = data.commission_split?.kelvin_pct ?? 0
+      const pPct = data.commission_split?.platform_pct ?? 0
+      setMarkup({
+        ...data,
+        breakdown: rows,
+        total_app_markup_usd: totalMarkup,
+        total_volume_usd: rows.reduce((acc, b) => acc + (b.volume_usd || 0), 0),
+        total_payout_usd: rows.reduce((acc, b) => acc + (b.payout_usd || 0), 0),
+        total_contract_count: rows.reduce((acc, b) => acc + (b.contract_count || 0), 0),
+        total_client_count: rows.reduce((acc, b) => acc + (b.client_count || 0), 0),
+        commission_split: {
+          ...data.commission_split,
+          kelvin: (totalMarkup * kPct) / 100,
+          platform: (totalMarkup * pPct) / 100,
+        },
+      })
     } catch (err) {
       if (err instanceof DerivTokenExpiredError) {
         setMarkupTokenExpired(true)
@@ -550,39 +570,12 @@ export default function AdminPage() {
                 </div>
 
                 {/* Métricas de apoio */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: markup.breakdown.length > 0 ? 16 : 0 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 0 }}>
                   <StatCard label="Volume negociado" value={formatUsd(markup.total_volume_usd)} />
                   <StatCard label="Payout total" value={formatUsd(markup.total_payout_usd)} />
                   <StatCard label="Contratos" value={markup.total_contract_count} />
                   <StatCard label="Clientes" value={markup.total_client_count} />
                 </div>
-
-                {markup.breakdown.length > 0 && (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                      <thead>
-                        <tr style={{ color: 'var(--text-dim)', borderBottom: '1px solid var(--border)' }}>
-                          <th style={{ textAlign: 'left', padding: '8px 6px', fontWeight: 600 }}>App ID</th>
-                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Comissão</th>
-                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Volume</th>
-                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Contratos</th>
-                          <th style={{ textAlign: 'right', padding: '8px 6px', fontWeight: 600 }}>Clientes</th>
-                        </tr>
-                      </thead>
-                      <tbody className="tabular">
-                        {markup.breakdown.map((b) => (
-                          <tr key={b.app_id} style={{ borderBottom: '1px solid rgba(31,44,74,0.4)' }}>
-                            <td style={{ padding: '8px 6px', color: 'var(--text-dim)' }}>{b.app_id}</td>
-                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--green)', fontWeight: 600 }}>{formatUsd(b.app_markup_usd)}</td>
-                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{formatUsd(b.volume_usd)}</td>
-                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{b.contract_count}</td>
-                            <td style={{ padding: '8px 6px', textAlign: 'right', color: 'var(--text-dim)' }}>{b.client_count}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </>
             )}
 

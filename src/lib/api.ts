@@ -278,7 +278,38 @@ export const api = {
 
   // ── Admin: utilizadores locais ────────────────────────────
   async getAdminStats(): Promise<{ success: boolean; stats: AdminStats }> {
-    return fetchWithLocalAuth('/api/admin/users/stats')
+    try {
+      return await fetchWithLocalAuth('/api/admin/users/stats')
+    } catch (err) {
+      // Backend sem a rota /stats ("Route not found"): conta os utilizadores
+      // cadastrados no frontend, a partir da lista de /api/admin/users.
+      if (!(err instanceof HttpError) || err.status !== 404) throw err
+      const { users } = await fetchWithLocalAuth('/api/admin/users') as { users: AdminUserRow[] }
+      const INACTIVE_AFTER_DAYS = 30
+      const ONLINE_MS = 5 * 60 * 1000
+      const now = Date.now()
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      const startOfDay = d.getTime()
+      const isInactive = (u: AdminUserRow) => {
+        if (u.status === 'blocked') return false
+        const ref = u.lastLoginAt ?? u.createdAt
+        return now - ref > INACTIVE_AFTER_DAYS * 24 * 60 * 60 * 1000
+      }
+      const stats: AdminStats = {
+        total: users.length,
+        active: users.filter((u) => u.status === 'active').length,
+        inactive: users.filter(isInactive).length,
+        blocked: users.filter((u) => u.status === 'blocked').length,
+        verified: users.filter((u) => u.emailVerified).length,
+        unverified: users.filter((u) => !u.emailVerified).length,
+        neverLoggedIn: users.filter((u) => u.lastLoginAt === null).length,
+        newToday: users.filter((u) => u.createdAt >= startOfDay).length,
+        onlineNow: users.filter((u) => u.lastActiveAt !== null && now - u.lastActiveAt <= ONLINE_MS).length,
+        inactiveAfterDays: INACTIVE_AFTER_DAYS,
+      }
+      return { success: true, stats }
+    }
   },
 
   async getAdminUsers(): Promise<{ success: boolean; users: AdminUserRow[]; total: number }> {
