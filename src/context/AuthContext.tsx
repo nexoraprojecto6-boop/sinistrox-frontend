@@ -191,6 +191,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { active = false }
   }, [logoutLocal])
 
+  // Presença ("Online agora" no painel admin): enquanto a sessão local estiver
+  // ativa e a aba visível, pede /api/auth/me a cada 60 s para o servidor
+  // registar a atividade do utilizador. Falhas de rede são ignoradas.
+  useEffect(() => {
+    if (!isLocalAuthenticated) return
+    const beat = () => {
+      if (document.visibilityState !== 'visible') return
+      api.getLocalMe().catch((e) => {
+        if (e instanceof HttpError && e.status === 401) logoutLocal()
+      })
+    }
+    const id = setInterval(beat, 60_000)
+    document.addEventListener('visibilitychange', beat)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', beat)
+    }
+  }, [isLocalAuthenticated, logoutLocal])
+
   // ── Contas Deriv ────────────────────────────────────────────
 
   const setCurrentAccount = async (account: Account) => {

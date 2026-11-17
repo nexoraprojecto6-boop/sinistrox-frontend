@@ -2,13 +2,17 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLoader } from '../context/LoaderContext'
-import { api, DerivTokenExpiredError } from '../lib/api'
+import { api, computeAdminStats, DerivTokenExpiredError } from '../lib/api'
 import { DERIV_APP_ID } from '../lib/env'
 import type { AdminStats, AdminUserRow, MarkupStatisticsData } from '../lib/api'
 import type { AdminNotification } from '../lib/types'
 
 type Tab = 'todos' | 'nao_verificados' | 'bloqueados' | 'online' | 'novos_hoje' | 'inativos'
 type CommissionFilterMode = 'mes' | 'intervalo'
+
+// Divisão da comissão (percentagens fixas, somam 100)
+const SPLIT_KELVIN_PCT = 35
+const SPLIT_LUCIANO_PCT = 65
 
 // Tabs e lista de utilizadores inscritos ocultas.
 // Muda para true para voltar a mostrá-las.
@@ -171,17 +175,30 @@ export default function AdminPage() {
     loadNotifications()
   }, [localUser])
 
+  // Carrega estatísticas + utilizadores. Se uma das chamadas falhar, usa a outra:
+  // sem /stats, as contagens são calculadas a partir da lista de utilizadores.
+  const fetchCounts = async () => {
+    const [statsRes, usersRes] = await Promise.allSettled([
+      api.getAdminStats(),
+      api.getAdminUsers(),
+    ])
+    const usersList = usersRes.status === 'fulfilled' ? usersRes.value.users : null
+    if (usersList) setUsers(usersList)
+    if (statsRes.status === 'fulfilled') {
+      setStats(statsRes.value.stats)
+    } else if (usersList) {
+      setStats(computeAdminStats(usersList))
+    } else {
+      throw statsRes.reason
+    }
+  }
+
   const loadAll = async () => {
     show('A carregar painel...')
     setIsLoading(true)
     setErrorMsg(null)
     try {
-      const [statsRes, usersRes] = await Promise.all([
-        api.getAdminStats(),
-        api.getAdminUsers(),
-      ])
-      setStats(statsRes.stats)
-      setUsers(usersRes.users)
+      await fetchCounts()
       complete('Pronto!')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Falha ao carregar dados')
@@ -190,6 +207,13 @@ export default function AdminPage() {
       setIsLoading(false)
     }
   }
+
+  // Atualiza as contagens (cadastrados / online) a cada 30 s, sem loader.
+  useEffect(() => {
+    if (!localUser || !isAdmin) return
+    const id = setInterval(() => { fetchCounts().catch(() => {}) }, 30_000)
+    return () => clearInterval(id)
+  }, [localUser, isAdmin])
 
   const loadMarkup = async () => {
     setMarkupLoading(true)
@@ -203,8 +227,6 @@ export default function AdminPage() {
       // os outros app IDs e recalcula totais e divisão só com esse app.
       const rows = (data.breakdown || []).filter((b) => String(b.app_id) === String(DERIV_APP_ID))
       const totalMarkup = rows.reduce((acc, b) => acc + (b.app_markup_usd || 0), 0)
-      const kPct = data.commission_split?.kelvin_pct ?? 0
-      const pPct = data.commission_split?.platform_pct ?? 0
       setMarkup({
         ...data,
         breakdown: rows,
@@ -214,9 +236,10 @@ export default function AdminPage() {
         total_contract_count: rows.reduce((acc, b) => acc + (b.contract_count || 0), 0),
         total_client_count: rows.reduce((acc, b) => acc + (b.client_count || 0), 0),
         commission_split: {
-          ...data.commission_split,
-          kelvin: (totalMarkup * kPct) / 100,
-          platform: (totalMarkup * pPct) / 100,
+          kelvin_pct: SPLIT_KELVIN_PCT,
+          luciano_pct: SPLIT_LUCIANO_PCT,
+          kelvin: (totalMarkup * SPLIT_KELVIN_PCT) / 100,
+          luciano: (totalMarkup * SPLIT_LUCIANO_PCT) / 100,
         },
       })
     } catch (err) {
@@ -456,7 +479,7 @@ export default function AdminPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
               <div>
                 <p style={{ color: 'var(--white)', fontWeight: 700, fontSize: 15 }}>Relatório de Comissão</p>
-                <p style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 2 }}>Comissão da app Sinistro X na Deriv, dividida entre Kelvin e a plataforma</p>
+                <p style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 2 }}>Comissão da app Sinistro X na Deriv, dividida entre Kelvin e Luciano</p>
               </div>
 
               {/* Alternar Mês / Intervalo */}
@@ -545,7 +568,7 @@ export default function AdminPage() {
                 <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
                   <div className="card" style={{ flex: '1 1 200px', padding: '16px 18px', background: 'var(--bg-card-hi)' }}>
                     <p style={{ color: 'var(--text-faint)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                      Comissão total ({markup.commission_split.kelvin_pct}/{markup.commission_split.platform_pct})
+                      Comissão total
                     </p>
                     <p className="tabular" style={{ color: 'var(--white)', fontSize: 26, fontWeight: 700 }}>
                       {formatUsd(markup.total_app_markup_usd)}
@@ -561,10 +584,10 @@ export default function AdminPage() {
                   </div>
                   <div className="card" style={{ flex: '1 1 150px', padding: '16px 18px' }}>
                     <p style={{ color: 'var(--text-faint)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                      Plataforma ({markup.commission_split.platform_pct}%)
+                      Luciano ({markup.commission_split.luciano_pct}%)
                     </p>
                     <p className="tabular" style={{ color: 'var(--green)', fontSize: 20, fontWeight: 700 }}>
-                      {formatUsd(markup.commission_split.platform)}
+                      {formatUsd(markup.commission_split.luciano)}
                     </p>
                   </div>
                 </div>
